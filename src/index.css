@@ -1,0 +1,644 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #07111f;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 18% 12%, rgba(132, 204, 22, 0.12), transparent 28%),
+    radial-gradient(circle at 82% 8%, rgba(20, 184, 166, 0.14), transparent 22%),
+    linear-gradient(180deg, #020617 0%, #05242f 46%, #030712 100%);
+}
+
+button {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  user-select: none;
+}
+
+.phone-frame {
+  aspect-ratio: 9 / 16;
+  border-radius: 0;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12), 0 24px 80px rgba(0, 0, 0, 0.42);
+}
+
+.weird-phone {
+  color: #ecfeff;
+  box-shadow:
+    0 0 0 1px rgba(190, 242, 100, 0.14),
+    0 0 44px rgba(45, 212, 191, 0.12),
+    0 24px 80px rgba(0, 0, 0, 0.52);
+}
+
+.sea-glass,
+.sea-panel {
+  border: 1px solid rgba(190, 242, 100, 0.16);
+  background:
+    linear-gradient(180deg, rgba(2, 6, 23, 0.58), rgba(8, 47, 73, 0.32)),
+    radial-gradient(circle at 50% 0%, rgba(190, 242, 100, 0.12), transparent 45%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 10px 28px rgba(0, 0, 0, 0.28);
+}
+
+.strong-panel {
+  border: 1px solid rgba(217, 249, 157, 0.22);
+  background:
+    linear-gradient(180deg, rgba(0, 0, 0, 0.82), rgba(2, 6, 23, 0.78)),
+    radial-gradient(circle at 50% 0%, rgba(45, 212, 191, 0.12), transparent 52%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 18px 40px rgba(0, 0, 0, 0.5),
+    0 0 22px rgba(20, 184, 166, 0.14);
+}
+
+@media (min-width: 640px) {
+  .phone-frame {
+    border-radius: 34px;
+  }
+}
+
+.sea-scene {
+  background:
+    radial-gradient(circle at 62% 18%, rgba(190, 242, 100, 0.22), transparent 11%),
+    radial-gradient(ellipse at 50% 64%, rgba(20, 184, 166, 0.25), transparent 37%),
+    linear-gradient(180deg, #12344a 0%, #0b4d62 31%, #064e58 46%, #05313d 66%, #03141f 100%);
+}
+
+.sea-zone-normal {
+  background:
+    radial-gradient(circle at 62% 18%, rgba(190, 242, 100, 0.22), transparent 11%),
+    radial-gradient(ellipse at 50% 64%, rgba(20, 184, 166, 0.25), transparent 37%),
+    linear-gradient(180deg, #12344a 0%, #0b4d62 31%, #064e58 46%, #05313d 66%, #03141f 100%);
+}
+
+.sea-zone-black {
+  background:
+    radial-gradient(circle at 58% 18%, rgba(94, 234, 212, 0.11), transparent 10%),
+    radial-gradient(ellipse at 50% 66%, rgba(15, 23, 42, 0.58), transparent 38%),
+    linear-gradient(180deg, #0b1724 0%, #082636 35%, #061923 58%, #020617 100%);
+}
+
+.sea-zone-rift {
+  background:
+    radial-gradient(ellipse at 50% 74%, rgba(59, 130, 246, 0.22), transparent 24%),
+    radial-gradient(circle at 70% 19%, rgba(165, 180, 252, 0.16), transparent 10%),
+    linear-gradient(180deg, #111827 0%, #123052 36%, #071a36 58%, #010611 100%);
+}
+
+.sea-zone-moon {
+  background:
+    radial-gradient(circle at 68% 18%, rgba(248, 113, 113, 0.42), transparent 12%),
+    radial-gradient(ellipse at 48% 66%, rgba(127, 29, 29, 0.32), transparent 35%),
+    linear-gradient(180deg, #211827 0%, #432234 34%, #29121f 58%, #07030a 100%);
+}
+
+.sea-black,
+.sea-violet,
+.sea-quiet {
+  background:
+    radial-gradient(circle at 58% 20%, rgba(190, 242, 100, 0.13), transparent 10%),
+    radial-gradient(ellipse at 50% 72%, rgba(8, 47, 73, 0.72), transparent 36%),
+    linear-gradient(180deg, #071827, #020617 95%);
+}
+
+.sea-red {
+  background:
+    radial-gradient(circle at 72% 22%, rgba(248, 113, 113, 0.36), transparent 13%),
+    radial-gradient(ellipse at 48% 72%, rgba(127, 29, 29, 0.56), transparent 38%),
+    linear-gradient(180deg, rgba(30, 41, 59, 0.72), rgba(3, 7, 18, 0.98));
+}
+
+.sea-mist {
+  background:
+    radial-gradient(ellipse at 50% 36%, rgba(226, 232, 240, 0.2), transparent 34%),
+    linear-gradient(180deg, rgba(51, 65, 85, 0.78), rgba(15, 23, 42, 0.98));
+}
+
+.wave-layer {
+  background:
+    radial-gradient(ellipse at 8% 18%, rgba(236, 253, 245, 0.34) 0 9%, transparent 10%),
+    radial-gradient(ellipse at 23% 42%, rgba(153, 246, 228, 0.22) 0 10%, transparent 11%),
+    radial-gradient(ellipse at 43% 24%, rgba(236, 253, 245, 0.28) 0 8%, transparent 9%),
+    radial-gradient(ellipse at 64% 48%, rgba(153, 246, 228, 0.2) 0 11%, transparent 12%),
+    radial-gradient(ellipse at 86% 28%, rgba(236, 253, 245, 0.24) 0 8%, transparent 9%);
+  animation: swell-drift 5.4s ease-in-out infinite;
+}
+
+.storm-wave {
+  opacity: 0.98;
+  transform: scaleY(1.22);
+  animation-duration: 2.6s;
+}
+
+.abyss-moon {
+  background:
+    radial-gradient(circle, rgba(217, 249, 157, 0.95) 0 18%, rgba(20, 184, 166, 0.34) 19% 44%, transparent 68%);
+  filter: blur(0.2px);
+  box-shadow: 0 0 34px rgba(190, 242, 100, 0.28);
+}
+
+.backdrop-black .abyss-moon {
+  background: radial-gradient(circle, rgba(45, 212, 191, 0.56) 0 16%, rgba(2, 6, 23, 0.25) 17% 48%, transparent 68%);
+  box-shadow: 0 0 30px rgba(20, 184, 166, 0.2);
+}
+
+.backdrop-rift .abyss-moon {
+  background: radial-gradient(circle, rgba(191, 219, 254, 0.78) 0 16%, rgba(59, 130, 246, 0.28) 17% 48%, transparent 68%);
+  box-shadow: 0 0 34px rgba(96, 165, 250, 0.25);
+}
+
+.backdrop-moon .abyss-moon {
+  background: radial-gradient(circle, rgba(254, 202, 202, 0.88) 0 18%, rgba(248, 113, 113, 0.34) 19% 48%, transparent 68%);
+  box-shadow: 0 0 42px rgba(248, 113, 113, 0.36);
+}
+
+.distant-cloud {
+  animation: cloud-drift 12s ease-in-out infinite alternate;
+}
+
+.cloud-b {
+  animation-delay: -4s;
+}
+
+.distant-island {
+  box-shadow: 22px -8px 0 rgba(6, 78, 59, 0.22), 74px -3px 0 rgba(6, 78, 59, 0.16);
+}
+
+.backdrop-black .distant-island {
+  background-color: rgba(2, 6, 23, 0.62);
+  box-shadow: 34px -5px 0 rgba(2, 6, 23, 0.45), 86px 3px 0 rgba(15, 23, 42, 0.36);
+}
+
+.backdrop-rift .distant-island {
+  width: 210px;
+  background-color: rgba(30, 41, 59, 0.5);
+  box-shadow: 42px 10px 0 rgba(15, 23, 42, 0.45), 120px -8px 0 rgba(30, 64, 175, 0.26);
+}
+
+.backdrop-moon .distant-island {
+  background-color: rgba(69, 10, 10, 0.46);
+  box-shadow: 28px -8px 0 rgba(127, 29, 29, 0.32), 84px 2px 0 rgba(69, 10, 10, 0.3);
+}
+
+.sea-surface {
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(217, 249, 157, 0.26), transparent 12%),
+    radial-gradient(ellipse at 34% 58%, rgba(45, 212, 191, 0.2), transparent 18%),
+    radial-gradient(ellipse at 70% 72%, rgba(2, 6, 23, 0.3), transparent 22%),
+    linear-gradient(180deg, rgba(20, 184, 166, 0.46), rgba(6, 95, 70, 0.24) 54%, rgba(4, 47, 63, 0.22));
+  mask-image: linear-gradient(180deg, black 0%, black 78%, transparent 100%);
+}
+
+.backdrop-black .sea-surface {
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(45, 212, 191, 0.12), transparent 12%),
+    radial-gradient(ellipse at 58% 62%, rgba(2, 6, 23, 0.48), transparent 22%),
+    linear-gradient(180deg, rgba(15, 23, 42, 0.62), rgba(2, 6, 23, 0.42));
+}
+
+.backdrop-rift .sea-surface {
+  background:
+    radial-gradient(ellipse at 50% 88%, rgba(96, 165, 250, 0.32), transparent 20%),
+    linear-gradient(180deg, rgba(37, 99, 235, 0.34), rgba(2, 6, 23, 0.44));
+}
+
+.backdrop-rift .sea-surface::after {
+  content: "";
+  position: absolute;
+  left: 44%;
+  top: 10%;
+  width: 52px;
+  height: 110%;
+  background: linear-gradient(180deg, transparent, rgba(147, 197, 253, 0.18), rgba(2, 6, 23, 0.55));
+  clip-path: polygon(44% 0, 70% 0, 52% 100%, 18% 100%);
+  filter: blur(1px);
+}
+
+.backdrop-moon .sea-surface {
+  background:
+    radial-gradient(ellipse at 62% 0%, rgba(248, 113, 113, 0.26), transparent 14%),
+    radial-gradient(ellipse at 38% 62%, rgba(127, 29, 29, 0.24), transparent 22%),
+    linear-gradient(180deg, rgba(127, 29, 29, 0.42), rgba(2, 6, 23, 0.42));
+}
+
+.sea-glint {
+  border-radius: 999px;
+  background:
+    linear-gradient(90deg, transparent, rgba(217, 249, 157, 0.55), rgba(153, 246, 228, 0.18), transparent);
+  filter: blur(1px);
+  animation: glint-pulse 3.2s ease-in-out infinite;
+}
+
+.sea-glint-b {
+  animation-delay: -1.4s;
+  opacity: 0.7;
+}
+
+.current-ribbons {
+  opacity: 0.46;
+  background:
+    radial-gradient(ellipse at 12% 38%, rgba(20, 184, 166, 0.18) 0 12%, transparent 13%),
+    radial-gradient(ellipse at 38% 58%, rgba(190, 242, 100, 0.1) 0 10%, transparent 11%),
+    radial-gradient(ellipse at 67% 32%, rgba(20, 184, 166, 0.16) 0 14%, transparent 15%),
+    radial-gradient(ellipse at 88% 64%, rgba(190, 242, 100, 0.08) 0 10%, transparent 11%);
+  filter: blur(0.3px);
+  animation: current-slide 8s linear infinite;
+}
+
+.wave-foam {
+  opacity: 0.55;
+  background:
+    radial-gradient(ellipse at 12% 50%, rgba(217, 249, 157, 0.7) 0 5%, transparent 6%),
+    radial-gradient(ellipse at 33% 52%, rgba(153, 246, 228, 0.55) 0 4%, transparent 5%),
+    radial-gradient(ellipse at 58% 48%, rgba(217, 249, 157, 0.5) 0 5%, transparent 6%),
+    radial-gradient(ellipse at 82% 50%, rgba(153, 246, 228, 0.42) 0 4%, transparent 5%);
+  animation: foam-slide 4.8s linear infinite;
+}
+
+.wave-foam-b {
+  animation-duration: 6.6s;
+  opacity: 0.38;
+}
+
+.near-wave {
+  opacity: 0.72;
+  background:
+    radial-gradient(ellipse at 8% 38%, rgba(236, 253, 245, 0.68) 0 4%, transparent 5%),
+    radial-gradient(ellipse at 22% 55%, rgba(153, 246, 228, 0.5) 0 7%, transparent 8%),
+    radial-gradient(ellipse at 42% 42%, rgba(236, 253, 245, 0.62) 0 5%, transparent 6%),
+    radial-gradient(ellipse at 64% 56%, rgba(153, 246, 228, 0.42) 0 8%, transparent 9%),
+    radial-gradient(ellipse at 86% 46%, rgba(236, 253, 245, 0.52) 0 5%, transparent 6%),
+    linear-gradient(180deg, transparent 0 40%, rgba(2, 132, 199, 0.16) 41% 55%, transparent 56%);
+  filter: blur(0.2px);
+  animation: near-wave-roll 3.8s ease-in-out infinite;
+}
+
+.near-wave-b {
+  opacity: 0.48;
+  animation-duration: 5.4s;
+  animation-delay: -1.6s;
+}
+
+.backdrop-black .near-wave,
+.backdrop-black .wave-foam {
+  filter: grayscale(0.4) brightness(0.58);
+  opacity: 0.62;
+}
+
+.backdrop-rift .near-wave,
+.backdrop-rift .wave-foam {
+  filter: hue-rotate(55deg) saturate(1.2);
+}
+
+.backdrop-moon .near-wave,
+.backdrop-moon .wave-foam {
+  filter: hue-rotate(145deg) saturate(1.25);
+}
+
+.backdrop-moon .sea-sparks {
+  background-image:
+    radial-gradient(circle at 12% 18%, rgba(254, 202, 202, 0.75) 0 1px, transparent 2px),
+    radial-gradient(circle at 28% 66%, rgba(248, 113, 113, 0.65) 0 1px, transparent 2px),
+    radial-gradient(circle at 61% 72%, rgba(254, 202, 202, 0.58) 0 1px, transparent 2px);
+}
+
+.storm-near-wave {
+  opacity: 0.86;
+  transform: scaleY(1.35);
+  animation-name: storm-wave-roll;
+  animation-duration: 2.25s;
+}
+
+.sea-sparks {
+  opacity: 0.5;
+  background-image:
+    radial-gradient(circle at 12% 18%, rgba(217, 249, 157, 0.75) 0 1px, transparent 2px),
+    radial-gradient(circle at 28% 66%, rgba(153, 246, 228, 0.65) 0 1px, transparent 2px),
+    radial-gradient(circle at 44% 34%, rgba(217, 249, 157, 0.45) 0 1px, transparent 2px),
+    radial-gradient(circle at 61% 72%, rgba(153, 246, 228, 0.58) 0 1px, transparent 2px),
+    radial-gradient(circle at 82% 28%, rgba(217, 249, 157, 0.55) 0 1px, transparent 2px);
+  animation: spark-drift 5.6s ease-in-out infinite alternate;
+}
+
+.fishing-gear {
+  z-index: 1;
+}
+
+.gear-yank {
+  animation: gear-yank 0.22s ease-out 2;
+  transform-origin: 58px 720px;
+}
+
+.gear-rod-active {
+  animation: gear-rod-bend 0.9s ease-in-out infinite;
+  transform-origin: 58px 720px;
+}
+
+.gear-line {
+  transform-origin: 214px 286px;
+}
+
+.gear-line-active {
+  animation: gear-line-tug 0.42s ease-in-out infinite;
+}
+
+.gear-bobber {
+  animation: bobber-idle 1.4s ease-in-out infinite;
+  transform-origin: 212px 506px;
+}
+
+.gear-bobber-bite {
+  animation: bobber-bite-svg 0.32s ease-in-out infinite;
+}
+
+.fish-line {
+  animation: line-sway 2.2s ease-in-out infinite;
+  transform-origin: top;
+}
+
+.line-tug {
+  width: 2px;
+  animation: line-tug 0.42s ease-in-out infinite;
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.75);
+}
+
+.float-bobber {
+  animation: bobber-idle 1.4s ease-in-out infinite;
+}
+
+.float-bite {
+  animation: bobber-bite 0.32s ease-in-out infinite;
+}
+
+.fish-shadow {
+  filter: blur(1px);
+  animation: shadow-swim 2.2s ease-in-out infinite;
+}
+
+.shake {
+  animation: shake 0.28s linear infinite;
+}
+
+.splash {
+  animation: splash 0.72s ease-out infinite;
+}
+
+.coin-burst {
+  animation: coin-burst 0.9s ease-out infinite;
+}
+
+.prize-fish-wrap {
+  animation: prize-pop 0.52s cubic-bezier(0.2, 1.35, 0.35, 1);
+}
+
+@keyframes drift {
+  from {
+    transform: translateX(-3%);
+  }
+  to {
+    transform: translateX(3%);
+  }
+}
+
+@keyframes swell-drift {
+  0%,
+  100% {
+    transform: translateX(-8px) translateY(0) scaleY(1);
+  }
+  50% {
+    transform: translateX(8px) translateY(7px) scaleY(1.08);
+  }
+}
+
+@keyframes cloud-drift {
+  from {
+    transform: translateX(-8px);
+  }
+  to {
+    transform: translateX(14px);
+  }
+}
+
+@keyframes foam-slide {
+  from {
+    transform: translateX(-4%);
+  }
+  to {
+    transform: translateX(4%);
+  }
+}
+
+@keyframes glint-pulse {
+  0%,
+  100% {
+    transform: translateX(-8px) scaleX(0.84);
+    opacity: 0.28;
+  }
+  50% {
+    transform: translateX(10px) scaleX(1.18);
+    opacity: 0.72;
+  }
+}
+
+@keyframes current-slide {
+  from {
+    transform: translateX(-18px);
+  }
+  to {
+    transform: translateX(18px);
+  }
+}
+
+@keyframes near-wave-roll {
+  0%,
+  100% {
+    transform: translateX(-8px) translateY(0);
+  }
+  50% {
+    transform: translateX(10px) translateY(5px);
+  }
+}
+
+@keyframes storm-wave-roll {
+  0%,
+  100% {
+    transform: translateX(-14px) translateY(-2px) scaleY(1.18);
+  }
+  50% {
+    transform: translateX(14px) translateY(12px) scaleY(1.48);
+  }
+}
+
+@keyframes spark-drift {
+  from {
+    transform: translate(-4px, 0);
+    opacity: 0.34;
+  }
+  to {
+    transform: translate(8px, 6px);
+    opacity: 0.64;
+  }
+}
+
+@keyframes line-sway {
+  0%,
+  100% {
+    transform: rotate(-2deg);
+  }
+  50% {
+    transform: rotate(2deg);
+  }
+}
+
+@keyframes line-tug {
+  0%,
+  100% {
+    transform: rotate(-4deg) translateX(-2px);
+    height: 28%;
+  }
+  35% {
+    transform: rotate(5deg) translateX(3px);
+    height: 31%;
+  }
+  70% {
+    transform: rotate(-1deg) translateX(1px);
+    height: 26%;
+  }
+}
+
+@keyframes gear-rod-bend {
+  0%,
+  100% {
+    transform: rotate(0deg) translateY(0);
+  }
+  50% {
+    transform: rotate(2.5deg) translateY(6px);
+  }
+}
+
+@keyframes gear-yank {
+  0% {
+    transform: rotate(0deg) translateY(0);
+  }
+  50% {
+    transform: rotate(4deg) translateY(9px);
+  }
+  100% {
+    transform: rotate(0deg) translateY(0);
+  }
+}
+
+@keyframes gear-line-tug {
+  0%,
+  100% {
+    transform: rotate(-2.5deg) translateX(-2px);
+  }
+  50% {
+    transform: rotate(3deg) translateX(4px);
+  }
+}
+
+@keyframes bobber-bite-svg {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(5px, 12px) scale(0.92);
+  }
+}
+
+@keyframes bobber-idle {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(7px);
+  }
+}
+
+@keyframes bobber-bite {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(4px, 10px) scale(0.9);
+  }
+}
+
+@keyframes shadow-swim {
+  0%,
+  100% {
+    transform: translate(-10px, 0) scale(1);
+    opacity: 0.62;
+  }
+  50% {
+    transform: translate(12px, 8px) scale(1.08);
+    opacity: 0.9;
+  }
+}
+
+@keyframes shake {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  25% {
+    transform: translate(2px, -1px);
+  }
+  50% {
+    transform: translate(-2px, 1px);
+  }
+  75% {
+    transform: translate(1px, 2px);
+  }
+}
+
+@keyframes splash {
+  0% {
+    transform: scale(0.74);
+    opacity: 0.85;
+  }
+  100% {
+    transform: scale(1.7);
+    opacity: 0;
+  }
+}
+
+@keyframes coin-burst {
+  0% {
+    transform: translateY(10px) scale(0.8);
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-18px) scale(1.1);
+    opacity: 0;
+  }
+}
+
+@keyframes prize-pop {
+  0% {
+    transform: translateY(32px) rotate(-4deg) scale(0.72);
+    opacity: 0;
+  }
+  68% {
+    transform: translateY(-6px) rotate(2deg) scale(1.05);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(0) rotate(0) scale(1);
+    opacity: 1;
+  }
+}
