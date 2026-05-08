@@ -1,0 +1,77 @@
+name: Deploy JOJOFISH
+
+on:
+  push:
+    branches:
+      - main
+      - wakaka
+  workflow_dispatch:
+
+concurrency:
+  group: jojofish-production
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Build and deploy
+    runs-on: ubuntu-latest
+
+    env:
+      DEPLOY_PATH: /var/www/jojofish.wakaka007.cn/current
+      SSH_HOST: ${{ secrets.SG_HOST }}
+      SSH_USER: ${{ secrets.SG_USER }}
+      SSH_PORT: ${{ secrets.SG_PORT || '22' }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Check deployment secrets
+        id: deploy_config
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SG_SSH_KEY }}
+        run: |
+          if [ -n "$SSH_HOST" ] && [ -n "$SSH_USER" ] && [ -n "$SSH_PRIVATE_KEY" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::Deployment secrets are incomplete. Set SG_HOST, SG_USER, SG_PORT, and SG_SSH_KEY to enable automatic deployment."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up Node.js
+        if: steps.deploy_config.outputs.ready == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        if: steps.deploy_config.outputs.ready == 'true'
+        run: npm ci
+
+      - name: Build
+        if: steps.deploy_config.outputs.ready == 'true'
+        run: npm run build
+
+      - name: Configure SSH
+        if: steps.deploy_config.outputs.ready == 'true'
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SG_SSH_KEY }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/jojofish_deploy_key
+          chmod 600 ~/.ssh/jojofish_deploy_key
+          ssh-keyscan -p "$SSH_PORT" -H "$SSH_HOST" >> ~/.ssh/known_hosts
+
+      - name: Upload build artifacts
+        if: steps.deploy_config.outputs.ready == 'true'
+        run: |
+          rsync -az --delete \
+            -e "ssh -i ~/.ssh/jojofish_deploy_key -p $SSH_PORT" \
+            dist/ "$SSH_USER@$SSH_HOST:$DEPLOY_PATH/"
+
+      - name: Verify uploaded files
+        if: steps.deploy_config.outputs.ready == 'true'
+        run: |
+          ssh -i ~/.ssh/jojofish_deploy_key -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
+            "test -f '$DEPLOY_PATH/index.html' && find '$DEPLOY_PATH' -type d -exec chmod 755 {} + && find '$DEPLOY_PATH' -type f -exec chmod 644 {} +"
