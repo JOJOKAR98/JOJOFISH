@@ -1,4 +1,4 @@
-import type { Anomaly, Fish, Rod, SeaZone } from '../types';
+import type { Anomaly, Bait, Fish, Rod, SeaZone } from '../types';
 
 export const provinces = [
   '越秀区',
@@ -15,11 +15,30 @@ export const provinces = [
 ];
 
 export const rods: Rod[] = [
-  { id: 'basic', name: '普通鱼竿', rarity: '普通', price: 0, luck: 0, tolerance: 0, difficulty: 0 },
-  { id: 'fine', name: '精良鱼竿', rarity: '精良', price: 260, luck: 3, tolerance: 5, difficulty: 4 },
-  { id: 'rare', name: '稀有鱼竿', rarity: '稀有', price: 680, luck: 6, tolerance: 8, difficulty: 7 },
-  { id: 'epic', name: '史诗鱼竿', rarity: '史诗', price: 1380, luck: 9, tolerance: 11, difficulty: 10 },
-  { id: 'legend', name: '传说鱼竿', rarity: '传说', price: 2880, luck: 13, tolerance: 14, difficulty: 13 },
+  { id: 'basic', name: '\u666e\u901a\u9c7c\u7aff', rarity: '\u666e\u901a', price: 0, luck: 0, tolerance: 0, difficulty: 0 },
+  { id: 'starter', name: '\u65b0\u624b\u6d77\u7aff', rarity: '\u8d60\u9001', price: 0, luck: 1, tolerance: 2, difficulty: 1 },
+  { id: 'fine', name: '\u7cbe\u826f\u9c7c\u7aff', rarity: '\u7cbe\u826f', price: 260, luck: 3, tolerance: 5, difficulty: 4 },
+  { id: 'rare', name: '\u7a00\u6709\u9c7c\u7aff', rarity: '\u7a00\u6709', price: 680, luck: 6, tolerance: 8, difficulty: 7 },
+  { id: 'fog', name: '\u96fe\u6e2f\u77ed\u7aff', rarity: '\u7cbe\u826f', price: 920, luck: 7, tolerance: 9, difficulty: 8 },
+  { id: 'tide', name: '\u9ed1\u6f6e\u5f39\u7aff', rarity: '\u7a00\u6709', price: 1260, luck: 8, tolerance: 10, difficulty: 9 },
+  { id: 'epic', name: '\u53f2\u8bd7\u9c7c\u7aff', rarity: '\u53f2\u8bd7', price: 1380, luck: 9, tolerance: 11, difficulty: 10 },
+  { id: 'moon', name: '\u8840\u6708\u63a7\u7aff', rarity: '\u53f2\u8bd7', price: 1880, luck: 10, tolerance: 12, difficulty: 11 },
+  { id: 'abyss', name: '\u88c2\u8c37\u91cd\u7aff', rarity: '\u53f2\u8bd7', price: 2360, luck: 12, tolerance: 13, difficulty: 12 },
+  { id: 'legend', name: '\u4f20\u8bf4\u9c7c\u7aff', rarity: '\u4f20\u8bf4', price: 2880, luck: 13, tolerance: 14, difficulty: 13 },
+  { id: 'crown', name: '\u6e0a\u51a0\u9c7c\u7aff', rarity: '\u4f20\u8bf4', price: 4200, luck: 15, tolerance: 16, difficulty: 14 },
+];
+
+export const baits: Bait[] = [
+  { id: 'plain', name: '\u666e\u901a\u9c7c\u9975', price: 0, luck: 0, rareBoost: 0, description: '\u7a33\u5b9a\uff0c\u4ec0\u4e48\u90fd\u80fd\u54ac\u4e00\u53e3\u3002' },
+  { id: 'shrimp', name: '\u591c\u5149\u867e\u56e2', price: 90, luck: 1, rareBoost: 1, description: '\u6c34\u4e0b\u4f1a\u5fae\u5fae\u53d1\u4eae\u3002' },
+  { id: 'clam', name: '\u788e\u8d1d\u8089', price: 140, luck: 1, rareBoost: 2, description: '\u66f4\u5bb9\u6613\u5f15\u6765\u5927\u4e00\u70b9\u7684\u9c7c\u3002' },
+  { id: 'glow', name: '\u8367\u5149\u9c7c\u7cdc', price: 220, luck: 2, rareBoost: 2, description: '\u50cf\u5f00\u7bb1\u524d\u7684\u90a3\u4e00\u70b9\u5149\u3002' },
+  { id: 'mist', name: '\u8ff7\u96fe\u8f6f\u9975', price: 360, luck: 3, rareBoost: 3, description: '\u96fe\u6d77\u91cc\u7279\u522b\u597d\u7528\u3002' },
+  { id: 'blood', name: '\u8840\u6708\u7ea2\u9975', price: 520, luck: 4, rareBoost: 4, description: '\u5f02\u5e38\u6d77\u57df\u91cc\u4f1a\u53d8\u70ed\u3002' },
+  { id: 'black', name: '\u9ed1\u6f6e\u6c89\u9975', price: 680, luck: 5, rareBoost: 5, description: '\u4e0b\u6c89\u5f88\u5feb\uff0c\u50cf\u6709\u4e1c\u897f\u5728\u62c9\u3002' },
+  { id: 'bell', name: '\u4f4e\u9e23\u94c3\u9975', price: 860, luck: 6, rareBoost: 6, description: '\u4f1a\u5728\u6c34\u4e0b\u53d1\u51fa\u7ec6\u5c0f\u56de\u58f0\u3002' },
+  { id: 'rift', name: '\u88c2\u8c37\u9aa8\u9975', price: 1080, luck: 7, rareBoost: 7, description: '\u6df1\u6d77\u5f02\u79cd\u4f3c\u4e4e\u4f1a\u591a\u770b\u4e00\u773c\u3002' },
+  { id: 'king', name: '\u9c7c\u738b\u8bf1\u9975', price: 1680, luck: 9, rareBoost: 9, description: '\u522b\u95ee\u5b83\u95fb\u8d77\u6765\u50cf\u4ec0\u4e48\u3002' },
 ];
 
 const commonNames = [

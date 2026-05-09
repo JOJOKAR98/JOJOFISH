@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { BatteryCharging, Coins, Compass, ShoppingBag, Trophy } from 'lucide-react';
-import { anomalies, broadcastSeeds, failureMessages, fishPool, hiddenKings, provinces, rods, seaZones } from './data/gameData';
+import { anomalies, baits, failureMessages, fishPool, hiddenKings, provinces, rods, seaZones } from './data/gameData';
 import {
   clamp,
   createDefaultPlayer,
   createProvinceScores,
+  getEquippedBait,
   getEquippedRod,
   getLuck,
   getProvinceRank,
@@ -15,16 +16,95 @@ import {
 } from './lib/game';
 import type { Anomaly, Fish, Phase, PlayerState, ResultState } from './types';
 
-const SAVE_KEY = 'deep-sea-province-fishing-save-v1';
+const SAVE_KEY = 'deep-sea-province-fishing-save-v2';
 const CODEX_KEY = 'deep-sea-fish-codex-v1';
 
-type Sheet = 'shop' | 'rank' | 'zone' | 'codex' | null;
+type Sheet = 'shopRod' | 'shopBait' | 'rankDistrict' | 'rankPlayer' | 'zone' | 'codex' | null;
 
 type FishRecord = {
   id: string;
   count: number;
   maxWeight: number;
   firstDistrict: string;
+};
+
+type BroadcastItem = {
+  id: string;
+  district: string;
+  fish: string;
+  rarity: Fish['rarity'];
+};
+
+type ZoneUnlock = {
+  unlocked: boolean;
+  label: string;
+};
+
+const initialBroadcasts: BroadcastItem[] = [
+  { id: 'BLACKTIDE', district: provinces[0], fish: '渊冠王', rarity: 'king' },
+  { id: 'MOONHOOK', district: provinces[1], fish: '裂谷骨王', rarity: 'epic' },
+  { id: 'SEA-009', district: provinces[2], fish: '黑潮巨影', rarity: 'legendary' },
+];
+
+const shouldBroadcastFish = (rarity: Fish['rarity']) => ['legendary', 'epic', 'mutant', 'king'].includes(rarity);
+
+const allFish = [...fishPool, ...hiddenKings];
+
+const getZoneUnlocks = (player: PlayerState, codex: Record<string, FishRecord>): Record<string, ZoneUnlock> => {
+  const discovered = Object.keys(codex).length;
+  const rareOrAbove = Object.keys(codex).filter((id) => {
+    const fish = allFish.find((item) => item.id === id);
+    return fish ? fish.rarity !== 'common' : false;
+  }).length;
+  const legendaryOrAbove = Object.keys(codex).filter((id) => {
+    const fish = allFish.find((item) => item.id === id);
+    return fish ? ['legendary', 'epic', 'mutant', 'king'].includes(fish.rarity) : false;
+  }).length;
+
+  return {
+    normal: { unlocked: true, label: "\u9ed8\u8ba4\u5f00\u653e" },
+    black: {
+      unlocked: player.totalCasts >= 10 && discovered >= 3,
+      label: "\u9700\u603b\u9493\u9c7c10\u6746 + \u56fe\u92743\u79cd",
+    },
+    rift: {
+      unlocked: player.totalCasts >= 30 && discovered >= 8 && rareOrAbove >= 2,
+      label: "\u9700\u603b\u9493\u9c7c30\u6746 + \u56fe\u92748\u79cd + \u7a00\u67092\u79cd",
+    },
+    moon: {
+      unlocked: player.totalCasts >= 60 && player.totalWeight >= 500 && legendaryOrAbove >= 1,
+      label: "\u9700\u603b\u9493\u9c7c60\u6746 + \u603b\u91cd500kg + \u4f20\u8bf41\u79cd",
+    },
+  };
+};
+
+const MAX_STAMINA = 100;
+const STAMINA_RESTORE_MS = 60000;
+const STAMINA_RESTORE_AMOUNT = 5;
+
+type PlayerRankRow = {
+  id: string;
+  dailyCasts: number;
+  dailyWeight: number;
+  totalCasts: number;
+  totalWeight: number;
+};
+
+const playerSeeds: PlayerRankRow[] = [];
+
+const recoverStamina = (player: PlayerState): PlayerState => {
+  const now = Date.now();
+  const elapsedTicks = Math.floor((now - (player.lastStaminaAt || now)) / STAMINA_RESTORE_MS);
+  const today = todayKey();
+  const resetStats = player.statsDate !== today;
+  return {
+    ...player,
+    dailyCasts: resetStats ? 0 : player.dailyCasts,
+    dailyWeight: resetStats ? 0 : player.dailyWeight,
+    statsDate: today,
+    stamina: Math.min(MAX_STAMINA, player.stamina + elapsedTicks * STAMINA_RESTORE_AMOUNT),
+    lastStaminaAt: elapsedTicks > 0 ? now : player.lastStaminaAt || now,
+  };
 };
 
 const districtCenters = [
@@ -83,7 +163,8 @@ const loadPlayer = (): PlayerState => {
   try {
     const raw = localStorage.getItem(SAVE_KEY);
     const loaded = raw ? { ...createDefaultPlayer(), ...JSON.parse(raw) } : createDefaultPlayer();
-    return provinces.includes(loaded.province) ? loaded : { ...loaded, province: '天河区' };
+    const normalized = provinces.includes(loaded.province) ? loaded : { ...loaded, province: provinces[0] };
+    return recoverStamina(normalized);
   } catch {
     return createDefaultPlayer();
   }
@@ -110,8 +191,19 @@ const rarityLabel: Record<Fish['rarity'], string> = {
 const resultLine = (fish: Fish) => {
   if (fish.rarity === 'king') return '海底有什么东西醒了……';
   if (fish.rarity === 'rare' || fish.rarity === 'legendary' || fish.rarity === 'epic' || fish.rarity === 'mutant') return '出货了！';
-  return '爆护！';
+  return '\u606d\u559c\u4f60';
 };
+
+const requiredHitsByRarity: Record<Fish['rarity'], number> = {
+  common: 3,
+  rare: 4,
+  legendary: 5,
+  epic: 6,
+  mutant: 7,
+  king: 8,
+};
+
+const getRequiredHits = (fish: Fish | null) => (fish ? requiredHitsByRarity[fish.rarity] : 3);
 
 function App() {
   const [player, setPlayer] = useState<PlayerState>(() => loadPlayer());
@@ -131,18 +223,21 @@ function App() {
   const [missCount, setMissCount] = useState(0);
   const [result, setResult] = useState<ResultState | null>(null);
   const [energyPrompt, setEnergyPrompt] = useState('');
-  const [broadcasts, setBroadcasts] = useState<string[]>(broadcastSeeds);
+  const [broadcasts, setBroadcasts] = useState<BroadcastItem[]>(initialBroadcasts);
   const [toast, setToast] = useState('准备下竿');
   const [pulse, setPulse] = useState(false);
   const [locating, setLocating] = useState(false);
   const [locationMessage, setLocationMessage] = useState('定位后加入广州区服 PK');
   const [codex, setCodex] = useState<Record<string, FishRecord>>(() => loadCodex());
+  const [playerIdInput, setPlayerIdInput] = useState('');
   const intendedSuccessRef = useRef(true);
   const fightResolvedRef = useRef(false);
 
   const selectedZone = useMemo(() => seaZones.find((zone) => zone.id === selectedZoneId) ?? seaZones[0], [selectedZoneId]);
   const equippedRod = useMemo(() => getEquippedRod(player), [player]);
+  const equippedBait = useMemo(() => getEquippedBait(player), [player]);
   const luck = useMemo(() => getLuck(player), [player]);
+  const zoneUnlocks = useMemo(() => getZoneUnlocks(player, codex), [player, codex]);
   const provinceScores = useMemo(
     () => createProvinceScores(player.province, player.provinceContribution),
     [player.province, player.provinceContribution, result],
@@ -153,8 +248,22 @@ function App() {
       ? seaClassByTone[anomaly.tone] ?? 'sea-scene'
       : seaClassByZone[selectedZone.id] ?? 'sea-zone-normal';
   const tensionDanger = tension > 88 + equippedRod.tolerance || tension < 13;
-  const canCast = phase === 'idle';
-  const visibleFish = phase === 'waiting' || phase === 'reeling' || !!result;
+  const canCast = phase === 'idle' && !!player.playerId;
+  const visibleFish = phase === 'reeling' || !!result;
+  const playerRankRows = useMemo(
+    () =>
+      [
+        ...playerSeeds,
+        {
+          id: player.playerId || 'YOU',
+          dailyCasts: player.dailyCasts,
+          dailyWeight: Number(player.dailyWeight.toFixed(1)),
+          totalCasts: player.totalCasts,
+          totalWeight: Number(player.totalWeight.toFixed(1)),
+        },
+      ].sort((a, b) => b.dailyWeight - a.dailyWeight),
+    [player.playerId, player.dailyCasts, player.dailyWeight, player.totalCasts, player.totalWeight],
+  );
 
   useEffect(() => {
     localStorage.setItem(SAVE_KEY, JSON.stringify(player));
@@ -163,6 +272,19 @@ function App() {
   useEffect(() => {
     localStorage.setItem(CODEX_KEY, JSON.stringify(codex));
   }, [codex]);
+
+  useEffect(() => {
+    if (zoneUnlocks[selectedZoneId]?.unlocked !== false) return;
+    setSelectedZoneId('normal');
+    setToast("\u6d77\u57df\u672a\u89e3\u9501\uff0c\u5148\u56de\u5230\u666e\u901a\u6d77\u57df");
+  }, [selectedZoneId, zoneUnlocks]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setPlayer((current) => recoverStamina(current));
+    }, 15000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     if (phase !== 'waiting') return undefined;
@@ -203,21 +325,21 @@ function App() {
       });
 
       setTension((current) => {
-        const drift = hookedFish.rarity === 'common' ? -0.2 : hookedFish.rarity === 'rare' ? 0.05 : hookedFish.rarity === 'legendary' ? 0.12 : 0.22;
-        return clamp(current + drift + missCount * 0.18, 18, 96 + equippedRod.tolerance);
+        const drift = hookedFish.rarity === 'common' ? -0.12 : hookedFish.rarity === 'rare' ? 0.12 : hookedFish.rarity === 'legendary' ? 0.22 : 0.34;
+        return clamp(current + drift + missCount * 0.24, 18, 98 + equippedRod.tolerance);
       });
 
       setTimingValue((value) => {
         const speed =
           hookedFish.rarity === 'common'
-            ? 6.2
+            ? 9.2
             : hookedFish.rarity === 'rare'
-              ? 7.6
+              ? 11
               : hookedFish.rarity === 'legendary'
-                ? 8.7
+                ? 12.8
                 : hookedFish.rarity === 'epic'
-                  ? 9.6
-                  : 10.4;
+                  ? 14
+                  : 15.5;
         let next = value + timingDirection * speed;
         if (next >= 100) {
           next = 100;
@@ -235,7 +357,7 @@ function App() {
 
   useEffect(() => {
     if (!pulse) return undefined;
-    const timer = window.setTimeout(() => setPulse(false), 320);
+    const timer = window.setTimeout(() => setPulse(false), 180);
     return () => window.clearTimeout(timer);
   }, [pulse]);
 
@@ -248,31 +370,42 @@ function App() {
 
   const castRod = () => {
     if (!canCast) return;
+    if (zoneUnlocks[selectedZone.id]?.unlocked === false) {
+      setToast(zoneUnlocks[selectedZone.id]?.label ?? "\u8fd9\u7247\u6d77\u57df\u8fd8\u6ca1\u89e3\u9501");
+      return;
+    }
     if (player.stamina < selectedZone.staminaCost) {
       setEnergyPrompt(`${selectedZone.name}要 ${selectedZone.staminaCost} 点体力，补一口气马上继续。`);
       return;
     }
     const nextAnomaly = maybeAnomaly(selectedZone);
-    const nextPlayer = { ...player, stamina: player.stamina - selectedZone.staminaCost };
+    const nextPlayer = { ...player, stamina: player.stamina - selectedZone.staminaCost, lastStaminaAt: Date.now() };
     const fish = pickFish(nextPlayer, selectedZone, nextAnomaly);
     intendedSuccessRef.current = rollSuccess(fish, nextPlayer);
     fightResolvedRef.current = false;
     setPlayer(nextPlayer);
     setAnomaly(nextAnomaly);
     setHookedFish(fish);
-    setWaitLeft(randomInt(8, 18) / 10);
-    setPhase('waiting');
+    const duration =
+      fish.rarity === 'common'
+        ? randomInt(54, 62) / 10
+        : fish.rarity === 'rare'
+          ? randomInt(58, 66) / 10
+          : fish.rarity === 'legendary'
+            ? randomInt(62, 70) / 10
+            : randomInt(66, 74) / 10;
+    setWaitLeft(0);
+    setPhase('reeling');
+    setRoundDuration(duration);
+    setTimeLeft(duration);
     setResult(null);
     setHitCount(0);
     setMissCount(0);
-    setTimingValue(0);
+    setTimingValue(randomInt(0, 30));
     setProgress(0);
-    setTension(44);
-    setToast(fish.rarity === 'king' ? '海底有什么东西醒了……' : '咻！');
+    setTension(fish.rarity === 'king' ? 58 : 43);
+    setToast(fish.rarity === 'king' ? '\u6d77\u5e95\u6709\u4ec0\u4e48\u4e1c\u897f\u9192\u4e86\u2026\u2026' : '\u6765\u4e86\uff01');
     setPulse(true);
-    if (nextAnomaly.id !== 'none' && Math.random() < 0.45) {
-      setBroadcasts((items) => [`${player.province}区服发现${nextAnomaly.name}！`, ...items].slice(0, 5));
-    }
   };
 
   const finishFight = (success: boolean, reason?: ResultState['reason']) => {
@@ -288,6 +421,7 @@ function App() {
     const weight = Number((hookedFish.baseWeight * (0.82 + Math.random() * 0.55)).toFixed(1));
     const contribution = finalSuccess ? hookedFish.contribution + Math.round(weight * 3) : 0;
     const missLine = Math.random() < 0.5 ? '你只差一点点。' : failureMessages[randomInt(0, failureMessages.length - 1)];
+    const isNewCatch = finalSuccess && !codex[hookedFish.id];
 
     if (finalSuccess) {
       setCodex((current) => {
@@ -308,13 +442,18 @@ function App() {
       ...current,
       coins: current.coins + coins,
       provinceContribution: current.provinceContribution + contribution,
+      dailyCasts: current.dailyCasts + 1,
+      dailyWeight: current.dailyWeight + (finalSuccess ? weight : 0),
       totalCasts: current.totalCasts + 1,
+      totalWeight: current.totalWeight + (finalSuccess ? weight : 0),
       newbieWins: current.totalCasts < 5 && finalSuccess ? current.newbieWins + 1 : current.newbieWins,
     }));
 
-    if (finalSuccess && hookedFish.rarity !== 'common') {
-      const line = hookedFish.rarity === 'king' ? `${player.province}玩家征服了今日隐藏鱼王！` : `${player.province}玩家钓起了${rarityLabel[hookedFish.rarity]}：${hookedFish.name}！`;
-      setBroadcasts((items) => [line, ...items].slice(0, 5));
+    if (finalSuccess && shouldBroadcastFish(hookedFish.rarity)) {
+      setBroadcasts((items) => [
+        { id: player.playerId || 'YOU', district: player.province, fish: hookedFish.name, rarity: hookedFish.rarity },
+        ...items,
+      ].slice(0, 5));
     }
 
     setResult({
@@ -326,6 +465,7 @@ function App() {
       weight: finalSuccess ? weight : undefined,
       message: finalSuccess ? hookedFish.reveal : missLine,
       reviveOffered: false,
+      isNew: isNewCatch,
     });
     setToast(finalSuccess ? resultLine(hookedFish) : '刚刚那东西……不一般。');
     setPhase('result');
@@ -348,13 +488,15 @@ function App() {
   };
 
   const getHitWindow = (fish: Fish | null) => {
-    if (!fish) return { min: 34, max: 66 };
-    const widen = player.totalCasts < 5 ? 8 : 0;
-    if (fish.rarity === 'common') return { min: 32 - widen, max: 68 + widen };
-    if (fish.rarity === 'rare') return { min: 39 - widen, max: 61 + widen };
-    if (fish.rarity === 'legendary') return { min: 43 - widen, max: 57 + widen };
-    if (fish.rarity === 'epic') return { min: 45 - widen, max: 55 + widen };
-    return { min: 47 - widen, max: 53 + widen };
+    if (!fish) return { min: 42, max: 58 };
+    const newbieWiden = player.totalCasts < 3 ? 3 : 0;
+    const rodWiden = Math.min(2, Math.floor(equippedRod.difficulty / 6));
+    const widen = newbieWiden + rodWiden;
+    if (fish.rarity === 'common') return { min: 40 - widen, max: 60 + widen };
+    if (fish.rarity === 'rare') return { min: 43 - widen, max: 57 + widen };
+    if (fish.rarity === 'legendary') return { min: 45 - widen, max: 55 + widen };
+    if (fish.rarity === 'epic') return { min: 47 - widen, max: 53 + widen };
+    return { min: 48 - widen, max: 52 + widen };
   };
 
   const tapTiming = () => {
@@ -364,21 +506,22 @@ function App() {
 
     if (isHit) {
       const nextHits = hitCount + 1;
+      const requiredHits = getRequiredHits(hookedFish);
       setHitCount(nextHits);
-      setProgress(nextHits * 33.34);
-      setTension((value) => clamp(value - 8, 18, 112));
-      setToast(nextHits >= 3 ? '拉上来！' : `命中！${nextHits}/3`);
+      setProgress((nextHits / requiredHits) * 100);
+      setTension((value) => clamp(value - 6, 18, 112));
+      setToast(nextHits >= requiredHits ? '\u62c9\u4e0a\u6765\uff01' : `\u547d\u4e2d\uff01${nextHits}/${requiredHits}`);
       setPulse(true);
       setTimingValue(randomInt(0, 100) > 50 ? 12 : 88);
       setTimingDirection(randomInt(0, 1) === 0 ? 1 : -1);
-      if (nextHits >= 3) finishFight(true);
+      if (nextHits >= requiredHits) finishFight(true);
       return;
     }
 
     const nextMiss = missCount + 1;
     setMissCount(nextMiss);
-    setTension((value) => clamp(value + 18, 18, 118));
-    setProgress((value) => clamp(value - 12, 0, 100));
+    setTension((value) => clamp(value + 22, 18, 118));
+    setProgress((value) => clamp(value - 18, 0, 100));
     setToast(nextMiss >= 3 ? '鱼线一松！' : '差一点！');
     setPulse(true);
     if (nextMiss >= 3) finishFight(false, 'escaped');
@@ -400,8 +543,38 @@ function App() {
     }));
   };
 
+  const buyBait = (baitId: string) => {
+    const bait = baits.find((item) => item.id === baitId);
+    if (!bait) return;
+    if (player.ownedBaitIds.includes(baitId)) {
+      setPlayer((current) => ({ ...current, equippedBaitId: baitId }));
+      return;
+    }
+    if (player.coins < bait.price) return;
+    setPlayer((current) => ({
+      ...current,
+      coins: current.coins - bait.price,
+      ownedBaitIds: [...current.ownedBaitIds, baitId],
+      equippedBaitId: baitId,
+    }));
+  };
+
+  const claimStarter = () => {
+    const playerId = playerIdInput.trim();
+    if (!playerId) return;
+    setPlayer((current) => ({
+      ...current,
+      playerId,
+      coins: current.starterGiftClaimed ? current.coins : current.coins + 600,
+      ownedRodIds: current.ownedRodIds.includes('starter') ? current.ownedRodIds : [...current.ownedRodIds, 'starter'],
+      equippedRodId: current.equippedRodId === 'basic' ? 'starter' : current.equippedRodId,
+      starterGiftClaimed: true,
+    }));
+    setToast('新手礼包到账');
+  };
+
   const watchEnergyAd = () => {
-    setPlayer((current) => ({ ...current, stamina: current.stamina + 6 }));
+    setPlayer((current) => ({ ...current, stamina: Math.min(MAX_STAMINA, current.stamina + 30), lastStaminaAt: Date.now() }));
     setEnergyPrompt('');
     setToast('体力回来了！');
   };
@@ -438,14 +611,36 @@ function App() {
   return (
     <main className="min-h-screen overflow-hidden bg-slate-950 text-slate-100">
       <div className="flex min-h-screen items-center justify-center p-0 sm:p-4">
-        <div className={`phone-frame weird-phone relative flex h-[100dvh] w-full max-w-[390px] flex-col overflow-hidden sm:h-[844px] ${sceneClass} ${pulse ? 'shake' : ''}`}>
+        <div className={`phone-frame weird-phone relative flex h-[100dvh] w-full max-w-[390px] flex-col overflow-hidden sm:h-[844px] ${sceneClass}`}>
           <FishingBackdrop phase={phase} rarity={hookedFish?.rarity} anomaly={anomaly.id !== 'none'} zoneId={selectedZone.id} pulse={pulse} />
+
+          {!player.playerId && (
+            <div className="absolute inset-0 z-[70] flex items-center justify-center bg-slate-950/78 p-6 backdrop-blur">
+              <div className="w-full max-w-[320px] rounded-[28px] border border-lime-200/20 bg-black/72 p-5 text-center shadow-glow">
+                <div className="text-2xl font-black text-lime-100">{"\u8f93\u5165\u73a9\u5bb6 ID"}</div>
+                <p className="mt-2 text-xs leading-5 text-slate-300">{"\u9996\u6b21\u4e0a\u7ebf\u8d60\u9001 600 \u91d1\u5e01\u548c\u65b0\u624b\u6d77\u7aff\uff0c\u8f93\u5165 ID \u540e\u52a0\u5165\u5e7f\u5dde\u533a\u670d PK\u3002"}</p>
+                <input
+                  value={playerIdInput}
+                  onChange={(event) => setPlayerIdInput(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') claimStarter();
+                  }}
+                  maxLength={16}
+                  placeholder="JOJOFISH01"
+                  className="mt-4 h-12 w-full rounded-2xl border border-white/10 bg-white/10 px-4 text-center text-lg font-black uppercase text-white outline-none"
+                />
+                <button onClick={claimStarter} className="mt-3 h-12 w-full rounded-2xl bg-lime-200 text-base font-black text-slate-950 shadow-glow">
+                  {"\u9886\u53d6\u793c\u5305\u5e76\u5f00\u59cb"}
+                </button>
+              </div>
+            </div>
+          )}
 
           <header className="relative z-10 px-4 pt-3">
             <div className="mx-auto grid w-full max-w-[300px] grid-cols-3 gap-1.5">
-              <TopStat icon={<Coins size={16} />} label="金币" value={player.coins} />
-              <TopStat icon={<BatteryCharging size={16} />} label="体力" value={player.stamina} />
-              <TopStat icon={<Trophy size={16} />} label="排名" value={`#${provinceRank}`} />
+              <TopStat icon={<Coins size={16} />} label={"\u91d1\u5e01"} value={player.coins} />
+              <TopStat icon={<BatteryCharging size={16} />} label={"\u4f53\u529b"} value={player.stamina} />
+              <TopStat icon={<Trophy size={16} />} label={"\u6392\u540d"} value={`#${provinceRank}`} />
             </div>
             <div className="sea-glass mx-auto mt-2 flex w-full max-w-[310px] items-center justify-between rounded-full px-2.5 py-1.5 text-[11px] font-bold backdrop-blur">
               <select
@@ -460,7 +655,7 @@ function App() {
                 ))}
               </select>
               <span className="truncate px-2 text-cyan-50/85">{anomaly.description}</span>
-              <span className="text-amber-200">幸 {luck}</span>
+              <span className="text-amber-200">{"\u8fd0"} {luck}</span>
             </div>
             <div className="mx-auto mt-1.5 flex w-full max-w-[310px] items-center gap-2">
               <button
@@ -471,6 +666,11 @@ function App() {
                 {locating ? '定位中' : '定位参赛'}
               </button>
               <span className="min-w-0 flex-1 truncate text-[10px] font-bold text-lime-50/72">{locationMessage}</span>
+            </div>
+            <div className="mx-auto mt-1 flex w-full max-w-[310px] justify-between px-1 text-[10px] font-bold text-cyan-50/78">
+              <span>ID {player.playerId || '--'}</span>
+              <span>{"\u9975"} {equippedBait.name}</span>
+              <span>{"\u4eca\u65e5"} {player.dailyCasts}{"\u6746"} / {player.dailyWeight.toFixed(1)}kg</span>
             </div>
           </header>
 
@@ -489,6 +689,8 @@ function App() {
               </button>
             </div>
 
+            <BroadcastBar item={broadcasts[0]} />
+
             <div className="relative mt-2 flex min-h-0 flex-1 items-center justify-center pb-2">
               {visibleFish && (
                 <>
@@ -497,44 +699,45 @@ function App() {
                 </>
               )}
               {phase === 'idle' && (
-                <button onClick={castRod} className="z-10 rounded-full bg-amber-300 px-10 py-5 text-2xl font-black text-slate-950 shadow-gold active:scale-95">
-                  抛竿
-                </button>
-              )}
-              {phase === 'waiting' && (
-                <BigBubble title="咻！" detail={`${waitLeft.toFixed(1)} 秒后上钩`} />
+                <div className="z-10 flex flex-col items-center gap-2">
+                  <button onClick={castRod} className="rounded-full bg-amber-300 px-10 py-5 text-2xl font-black text-slate-950 shadow-gold active:scale-95">
+                    {"\u629b\u7aff"}
+                  </button>
+                  <div className="grid w-44 grid-cols-2 gap-2">
+                    <button onClick={() => setSheet('shopRod')} className="rounded-full bg-black/55 px-3 py-2 text-xs font-black text-lime-100 ring-1 ring-lime-200/25 backdrop-blur">
+                      {"\u9c7c\u7aff"}
+                    </button>
+                    <button onClick={() => setSheet('shopBait')} className="rounded-full bg-black/55 px-3 py-2 text-xs font-black text-cyan-100 ring-1 ring-cyan-200/25 backdrop-blur">
+                      {"\u9c7c\u9975"}
+                    </button>
+                  </div>
+                </div>
               )}
               {phase === 'reeling' && (
-                <TimingChallenge value={timingValue} hitWindow={getHitWindow(hookedFish)} hits={hitCount} timeLeft={timeLeft} danger={timeLeft <= 2} />
+                <TimingChallenge value={timingValue} hitWindow={getHitWindow(hookedFish)} hits={hitCount} requiredHits={getRequiredHits(hookedFish)} timeLeft={timeLeft} danger={timeLeft <= 2} />
               )}
             </div>
 
-            <div className="sea-panel strong-panel relative z-10 mx-auto w-full max-w-[310px] space-y-2 rounded-[18px] p-2.5 backdrop-blur">
-              <div className="min-h-6 text-center text-lg font-black text-lime-100 drop-shadow">{toast}</div>
-              <Meter label="张力" value={tension} max={112 + equippedRod.tolerance} danger={tensionDanger} zones />
-              <Meter label="命中" value={progress} max={100} />
+            <div className="sea-panel strong-panel relative z-10 mx-auto w-full max-w-[292px] rounded-[16px] p-2 backdrop-blur">
+              <div className="min-h-5 text-center text-base font-black text-lime-100 drop-shadow">{toast}</div>
+              <Meter label={"\u547d\u4e2d"} value={progress} max={100} compact />
             </div>
           </section>
 
           <footer className="relative z-20 space-y-2 bg-slate-950/50 px-4 pb-4 pt-3 backdrop-blur">
-            {phase === 'result' ? (
-              <button onClick={resetRound} className="h-20 w-full rounded-[26px] bg-lime-200 text-2xl font-black text-slate-950 shadow-glow active:scale-[0.98]">
-                再来一杆
-              </button>
-            ) : (
+            {phase === 'reeling' && (
               <button
-                disabled={phase !== 'reeling'}
                 onClick={tapTiming}
-                className="h-20 w-full rounded-[26px] bg-lime-200 text-2xl font-black text-slate-950 shadow-glow active:scale-[0.98] disabled:opacity-60"
+                className="h-20 w-full rounded-[26px] bg-lime-200 text-2xl font-black text-slate-950 shadow-glow active:scale-[0.98]"
               >
-                {phase === 'reeling' ? `看准点击 ${hitCount}/3` : '等鱼上钩'}
+                {`\u770b\u51c6\u70b9\u51fb ${hitCount}/${getRequiredHits(hookedFish)}`}
               </button>
             )}
             <div className="mx-auto grid w-full max-w-[310px] grid-cols-4 gap-1.5">
-              <SmallNav icon={<ShoppingBag size={17} />} label="商店" onClick={() => setSheet('shop')} />
-              <SmallNav icon={<Trophy size={17} />} label="榜单" onClick={() => setSheet('rank')} />
-              <SmallNav icon={<Compass size={17} />} label="海域" onClick={() => setSheet('zone')} />
-              <SmallNav icon={<Coins size={17} />} label="图鉴" onClick={() => setSheet('codex')} />
+              <SmallNav icon={<ShoppingBag size={17} />} label={"\u5546\u5e97"} onClick={() => setSheet('shopRod')} />
+              <SmallNav icon={<Trophy size={17} />} label={"\u699c\u5355"} onClick={() => setSheet('rankDistrict')} />
+              <SmallNav icon={<Compass size={17} />} label={"\u6d77\u57df"} onClick={() => setSheet('zone')} />
+              <SmallNav icon={<Coins size={17} />} label={"\u56fe\u9274"} onClick={() => setSheet('codex')} />
             </div>
           </footer>
 
@@ -552,13 +755,13 @@ function App() {
           )}
           {sheet && (
             <BottomSheet
-              title={sheet === 'shop' ? '鱼竿商店' : sheet === 'rank' ? '广州区服榜' : sheet === 'zone' ? '选择海域' : '怪鱼图鉴'}
+              title={sheet === 'shopRod' ? "\u9c7c\u7aff\u5546\u5e97" : sheet === 'shopBait' ? "\u9c7c\u9975\u5546\u5e97" : sheet === 'rankDistrict' ? "\u533a\u57df\u699c\u5355" : sheet === 'rankPlayer' ? "\u73a9\u5bb6\u699c\u5355" : sheet === 'zone' ? "\u9009\u62e9\u6d77\u57df" : "\u9c7c\u7c7b\u56fe\u9274"}
               onClose={() => setSheet(null)}
             >
-              {sheet === 'shop' && <Shop player={player} equippedRodId={player.equippedRodId} onBuy={buyRod} />}
-              {sheet === 'rank' && <Rank scores={provinceScores} province={player.province} contribution={player.provinceContribution} broadcasts={broadcasts} />}
+              {(sheet === 'shopRod' || sheet === 'shopBait') && <Shop mode={sheet === 'shopRod' ? 'rod' : 'bait'} player={player} equippedRodId={player.equippedRodId} equippedBaitId={player.equippedBaitId} onBuyRod={buyRod} onBuyBait={buyBait} onModeChange={(mode) => setSheet(mode === 'rod' ? 'shopRod' : 'shopBait')} />}
+              {(sheet === 'rankDistrict' || sheet === 'rankPlayer') && <Rank mode={sheet === 'rankDistrict' ? 'district' : 'player'} scores={provinceScores} province={player.province} contribution={player.provinceContribution} broadcasts={broadcasts} playerRows={playerRankRows} playerId={player.playerId} onModeChange={(mode) => setSheet(mode === 'district' ? 'rankDistrict' : 'rankPlayer')} />}
               {sheet === 'zone' && (
-                <ZonePicker selectedZoneId={selectedZoneId} onPick={(id) => { setSelectedZoneId(id); setSheet(null); }} disabled={!canCast} />
+                <ZonePickerUnlocked selectedZoneId={selectedZoneId} unlocks={zoneUnlocks} onPick={(id) => { setSelectedZoneId(id); setSheet(null); }} disabled={!canCast} />
               )}
               {sheet === 'codex' && <Codex codex={codex} />}
             </BottomSheet>
@@ -577,6 +780,43 @@ function TopStat({ icon, label, value }: { icon: React.ReactNode; label: string;
         {label}
       </div>
       <div className="text-sm font-black">{value}</div>
+    </div>
+  );
+}
+
+function BroadcastBar({ item }: { item?: BroadcastItem }) {
+  return (
+    <div className="mx-auto mt-2 w-full max-w-[318px] rounded-2xl border border-amber-200/20 bg-black/52 px-3 py-2 shadow-glow backdrop-blur">
+      <div className="mb-1 flex items-center justify-between text-[10px] font-black tracking-normal text-amber-100/90">
+        <span>{"\u5168\u670d\u5e7f\u64ad"}</span>
+        <span className="rounded-full bg-amber-200/12 px-2 py-0.5 text-[9px] text-amber-100">LEGEND+</span>
+      </div>
+      {item ? (
+        <BroadcastLine item={item} />
+      ) : (
+        <div className="truncate text-xs font-black text-slate-300">{"\u7b49\u5f85\u7b2c\u4e00\u6761\u4f20\u8bf4\u6218\u62a5"}</div>
+      )}
+    </div>
+  );
+}
+
+function BroadcastLine({ item }: { item: BroadcastItem }) {
+  const fishTone =
+    item.rarity === 'king'
+      ? 'text-rose-200'
+      : item.rarity === 'mutant'
+        ? 'text-fuchsia-200'
+        : item.rarity === 'epic'
+          ? 'text-violet-200'
+          : 'text-amber-200';
+
+  return (
+    <div className="truncate text-xs font-black leading-5 text-slate-100">
+      <span className="text-lime-200">#{item.id}</span>
+      <span className="mx-1 text-slate-500">/</span>
+      <span className="text-cyan-200">{item.district}</span>
+      <span className="mx-1 text-slate-300">{"\u9493\u8d77"}</span>
+      <span className={fishTone}>{item.fish}</span>
     </div>
   );
 }
@@ -663,40 +903,43 @@ function TimingChallenge({
   value,
   hitWindow,
   hits,
+  requiredHits,
   timeLeft,
   danger,
 }: {
   value: number;
   hitWindow: { min: number; max: number };
   hits: number;
+  requiredHits: number;
   timeLeft: number;
   danger?: boolean;
 }) {
   return (
-    <div className={`strong-panel z-10 w-full max-w-[292px] rounded-[24px] px-4 py-4 text-center shadow-glow backdrop-blur ${danger ? 'bg-rose-950/88' : ''}`}>
-      <div className="text-3xl font-black">来了！</div>
-      <div className="mt-1 text-sm font-bold text-slate-100/85">点中 3 次就拉上来</div>
-      <div className="mt-4 flex justify-center gap-2">
-        {[0, 1, 2].map((index) => (
-          <span key={index} className={`h-4 w-12 rounded-full ${index < hits ? 'bg-amber-300 shadow-gold' : 'bg-white/16'}`} />
+    <div className={`strong-panel z-10 w-full max-w-[340px] -translate-y-24 rounded-[22px] bg-black/50 px-3 py-3 text-center shadow-glow backdrop-blur ${danger ? 'bg-rose-950/88' : ''}`}>
+      <div className="text-2xl font-black">{"\u6765\u4e86\uff01"}</div>
+      <div className="mt-1 text-xs font-bold text-slate-100/85">{"\u770b\u51c6\u7eff\u533a\u70b9\u51fb"}</div>
+      <div className="mt-3 flex justify-center gap-1.5">
+        {Array.from({ length: requiredHits }).map((_, index) => (
+          <span key={index} className={`h-3 w-7 rounded-full ${index < hits ? 'bg-amber-300 shadow-gold' : 'bg-white/16'}`} />
         ))}
       </div>
-      <div className="relative mt-4 h-10 rounded-full bg-slate-900 ring-1 ring-white/10">
+      <div className="relative mt-3 h-10 rounded-md bg-slate-900/95 ring-1 ring-white/10">
         <div
-          className="absolute top-1 h-8 rounded-full bg-emerald-300/35 ring-1 ring-emerald-100/40"
+          className="absolute top-1 h-8 rounded-[5px] bg-emerald-300/35 ring-1 ring-emerald-100/40"
           style={{
             left: `${hitWindow.min}%`,
             width: `${hitWindow.max - hitWindow.min}%`,
           }}
         />
-        <div className="timing-dot absolute top-1 h-8 w-8 rounded-full bg-lime-200 shadow-glow" style={{ left: `calc(${value}% - 16px)` }} />
+        <div className="absolute inset-y-1 left-1/2 w-px bg-white/15" />
+        <div className="timing-dot absolute top-0 h-10 w-4 rounded-[4px] border border-lime-50 bg-lime-200 shadow-glow" style={{ left: `calc(${value}% - 8px)` }} />
       </div>
-      <div className="mt-2 text-lg font-black text-lime-100">{timeLeft.toFixed(1)}s</div>
+      <div className="mt-2 text-base font-black text-lime-100">{timeLeft.toFixed(1)}s</div>
     </div>
   );
 }
 
-function Meter({ label, value, max, danger, zones }: { label: string; value: number; max: number; danger?: boolean; zones?: boolean }) {
+function Meter({ label, value, max, danger, zones, compact }: { label: string; value: number; max: number; danger?: boolean; zones?: boolean; compact?: boolean }) {
   const percent = clamp((value / max) * 100, 0, 100);
   return (
     <div>
@@ -704,14 +947,14 @@ function Meter({ label, value, max, danger, zones }: { label: string; value: num
         <span>{label}</span>
         <span className={danger ? 'text-rose-200' : 'text-white'}>{Math.round(percent)}%</span>
       </div>
-      <div className={`relative h-5 overflow-hidden rounded-full bg-slate-900 ring-1 ring-white/10 ${danger ? 'shake' : ''}`}>
+      <div className={`relative ${compact ? 'h-3' : 'h-5'} overflow-hidden rounded-full bg-slate-900 ring-1 ring-white/10`}>
         {zones && (
           <>
             <div className="absolute left-[18%] top-0 h-full w-[70%] bg-emerald-300/20" />
             <div className="absolute right-0 top-0 h-full w-[10%] bg-rose-400/35" />
           </>
         )}
-        <div className={`relative h-full rounded-full transition-all ${danger ? 'bg-rose-400' : label === '张力' ? 'bg-teal-300' : 'bg-lime-200'}`} style={{ width: `${percent}%` }} />
+        <div className={`relative h-full rounded-full transition-all ${danger ? 'bg-rose-400' : 'bg-lime-200'}`} style={{ width: `${percent}%` }} />
       </div>
     </div>
   );
@@ -728,37 +971,44 @@ function SmallNav({ icon, label, onClick }: { icon: React.ReactNode; label: stri
 
 function ResultCard({ result, onClose }: { result: ResultState; onClose: () => void }) {
   return (
-    <div className="strong-panel absolute inset-x-4 top-[112px] z-40 max-h-[calc(100%-250px)] overflow-y-auto rounded-[24px] p-3.5 text-center shadow-glow backdrop-blur">
-      {result.success && result.fish ? (
-        <>
-          <div className="text-3xl font-black text-lime-100">{resultLine(result.fish)}</div>
-          <div className="mt-2 text-sm font-bold text-cyan-100">{rarityLabel[result.fish.rarity]}</div>
-          <div className="mt-1 text-2xl font-black">{result.fish.name}</div>
-          <PrizeFish fish={result.fish} />
-          <div className="coin-burst mx-auto mt-3 w-fit rounded-full bg-lime-200 px-4 py-1 text-lg font-black text-slate-950">+{result.coins}</div>
-          <p className="mt-3 text-sm leading-6 text-slate-200">{result.message}</p>
-          <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
-            <span className="rounded-2xl bg-white/10 px-2 py-2">{result.weight}kg</span>
-            <span className="rounded-2xl bg-white/10 px-2 py-2">贡献 +{result.contribution}</span>
-            <span className="rounded-2xl bg-white/10 px-2 py-2">金币 +{result.coins}</span>
-          </div>
-        </>
-      ) : (
-        <>
-          <div className="text-3xl font-black text-rose-100">差一点！</div>
-          <div className="mx-auto mt-4 h-16 w-72 rounded-[50%] bg-black/80 fish-shadow" />
-          <p className="mt-4 text-lg font-black text-white">刚刚那东西……不一般。</p>
-          <p className="mt-2 text-sm leading-6 text-slate-300">{result.message}</p>
-          <p className="mt-1 text-sm text-cyan-100">它还在下面。</p>
-        </>
-      )}
-      <button onClick={onClose} className="mt-4 h-14 w-full rounded-2xl bg-lime-200 text-lg font-black text-slate-950 shadow-glow">
-        再来一杆
-      </button>
+    <div onClick={onClose} className="absolute inset-0 z-40 flex items-center justify-center bg-slate-950/38 px-4 backdrop-blur-[1px]">
+      <div className="strong-panel relative max-h-[calc(100%-170px)] w-full max-w-[326px] overflow-y-auto rounded-[24px] p-4 text-center shadow-glow backdrop-blur">
+        {result.success && result.fish ? (
+          <>
+            {result.isNew && <span className="absolute left-3 top-3 z-10 rounded-full bg-rose-500 px-2.5 py-1 text-[10px] font-black text-white shadow-gold">NEW</span>}
+            <div className="mx-auto w-fit rounded-full bg-lime-200 px-3 py-1 text-xs font-black text-slate-950 shadow-glow">{resultLine(result.fish)}</div>
+            <div className="relative">
+              <PrizeFish fish={result.fish} />
+            </div>
+            <div className="mt-2 text-xs font-black tracking-wide text-cyan-100">{rarityLabel[result.fish.rarity]}</div>
+            <div className="mt-1 text-2xl font-black leading-tight text-white drop-shadow">{result.fish.name}</div>
+            <div className="mt-3 grid grid-cols-2 gap-2.5">
+              <div className="rounded-[18px] border border-cyan-200/25 bg-cyan-200/15 px-2 py-2.5">
+                <div className="text-[11px] font-black text-cyan-100">{"\u91cd\u91cf"}</div>
+                <div className="mt-0.5 text-2xl font-black text-white">{result.weight}<span className="ml-1 text-sm text-cyan-100">kg</span></div>
+              </div>
+              <div className="rounded-[18px] border border-amber-200/30 bg-amber-200/20 px-2 py-2.5">
+                <div className="text-[11px] font-black text-amber-100">{"\u91d1\u5e01"}</div>
+                <div className="coin-burst mt-0.5 text-2xl font-black text-amber-100">+{result.coins}</div>
+              </div>
+            </div>
+            <div className="mt-2 text-[11px] text-slate-300">{"\u5730\u533a\u8d21\u732e +"}{result.contribution}</div>
+            <p className="mt-1.5 text-[11px] leading-4 text-slate-400">{result.message}</p>
+          </>
+        ) : (
+          <>
+            <div className="text-2xl font-black text-rose-100">{"\u5dee\u4e00\u70b9\uff01"}</div>
+            <div className="mx-auto mt-4 h-16 w-72 rounded-[50%] bg-black/80 fish-shadow" />
+            <p className="mt-4 text-base font-black text-white">{"\u521a\u521a\u90a3\u4e1c\u897f\u2026\u2026\u4e0d\u4e00\u822c\u3002"}</p>
+            <p className="mt-2 text-xs leading-5 text-slate-300">{result.message}</p>
+            <p className="mt-1 text-xs text-cyan-100">{"\u5b83\u8fd8\u5728\u4e0b\u9762\u3002"}</p>
+          </>
+        )}
+        <div className="mt-3 border-t border-white/10 pt-2 text-[10px] font-bold text-slate-400">{"\u70b9\u51fb\u4efb\u610f\u4f4d\u7f6e\u7ee7\u7eed"}</div>
+      </div>
     </div>
   );
 }
-
 function PrizeFish({ fish }: { fish: Fish }) {
   const rareGlow = fish.rarity === 'king' || fish.rarity === 'rare' || fish.rarity === 'mutant';
   const bodyClass =
@@ -783,7 +1033,7 @@ function PrizeFish({ fish }: { fish: Fish }) {
         <div className="absolute left-[7.5rem] top-5 h-3 w-3 rounded-full bg-slate-950" />
         <div className="absolute left-4 top-0 h-10 w-10 -rotate-12 rounded-full border-t-8 border-cyan-50/70" />
       </div>
-      <div className="absolute bottom-2 text-xs font-black text-white/70">钓上来了！</div>
+      <div className="absolute bottom-2 text-xs font-black text-white/70">{"\u9493\u4e0a\u6765\u4e86\uff01"}</div>
     </div>
   );
 }
@@ -802,41 +1052,87 @@ function BottomSheet({ title, children, onClose }: { title: string; children: Re
   );
 }
 
-function Shop({ player, equippedRodId, onBuy }: { player: PlayerState; equippedRodId: string; onBuy: (id: string) => void }) {
+function Shop({ mode, player, equippedRodId, equippedBaitId, onBuyRod, onBuyBait, onModeChange }: { mode: 'rod' | 'bait'; player: PlayerState; equippedRodId: string; equippedBaitId: string; onBuyRod: (id: string) => void; onBuyBait: (id: string) => void; onModeChange: (mode: 'rod' | 'bait') => void }) {
   return (
-    <div className="space-y-2">
-      {rods.map((rod) => {
-        const owned = player.ownedRodIds.includes(rod.id);
-        const equipped = equippedRodId === rod.id;
-        return (
-          <button key={rod.id} onClick={() => onBuy(rod.id)} className={`w-full rounded-2xl border p-3 text-left ${equipped ? 'border-amber-200 bg-amber-300/20' : 'border-white/10 bg-white/10'}`}>
-            <div className="flex justify-between text-base font-black">
-              <span>{rod.name}</span>
-              <span>{equipped ? '使用中' : owned ? '装备' : `${rod.price}金币`}</span>
-            </div>
-            <div className="mt-1 text-xs text-slate-300">幸运 +{rod.luck}  容错 +{rod.tolerance}  手感 +{rod.difficulty}</div>
-          </button>
-        );
-      })}
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-2 rounded-2xl bg-white/5 p-1">
+        <button onClick={() => onModeChange('rod')} className={`rounded-xl py-2 text-sm font-black ${mode === 'rod' ? 'bg-lime-200 text-slate-950' : 'text-slate-200'}`}>{"\u9c7c\u7aff"}</button>
+        <button onClick={() => onModeChange('bait')} className={`rounded-xl py-2 text-sm font-black ${mode === 'bait' ? 'bg-cyan-200 text-slate-950' : 'text-slate-200'}`}>{"\u9c7c\u9975"}</button>
+      </div>
+      {mode === 'rod' ? (
+        <div className="space-y-2">
+          {rods.map((rod) => {
+            const owned = player.ownedRodIds.includes(rod.id);
+            const equipped = equippedRodId === rod.id;
+            return (
+              <button key={rod.id} onClick={() => onBuyRod(rod.id)} className={`w-full rounded-2xl border p-3 text-left ${equipped ? 'border-amber-200 bg-amber-300/20' : 'border-white/10 bg-white/10'}`}>
+                <div className="flex justify-between text-base font-black">
+                  <span>{rod.name}</span>
+                  <span>{equipped ? "\u4f7f\u7528\u4e2d" : owned ? "\u88c5\u5907" : `${rod.price}\u91d1\u5e01`}</span>
+                </div>
+                <div className="mt-1 text-xs text-slate-300">{"\u5e78\u8fd0"} +{rod.luck} {"\u5bb9\u9519"} +{rod.tolerance} {"\u624b\u611f"} +{rod.difficulty}</div>
+              </button>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {baits.map((bait) => {
+            const owned = player.ownedBaitIds.includes(bait.id);
+            const equipped = equippedBaitId === bait.id;
+            return (
+              <button key={bait.id} onClick={() => onBuyBait(bait.id)} className={`w-full rounded-2xl border p-3 text-left ${equipped ? 'border-cyan-200 bg-cyan-300/20' : 'border-white/10 bg-white/10'}`}>
+                <div className="flex justify-between text-base font-black">
+                  <span>{bait.name}</span>
+                  <span>{equipped ? "\u4f7f\u7528\u4e2d" : owned ? "\u4f7f\u7528" : `${bait.price}\u91d1\u5e01`}</span>
+                </div>
+                <div className="mt-1 text-xs text-slate-300">{"\u5e78\u8fd0"} +{bait.luck} {"\u51fa\u8d27\u611f"} +{bait.rareBoost} ? {bait.description}</div>
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
 
-function Rank({ scores, province, contribution, broadcasts }: { scores: ReturnType<typeof createProvinceScores>; province: string; contribution: number; broadcasts: string[] }) {
+function Rank({ mode, scores, province, contribution, broadcasts, playerRows, playerId, onModeChange }: { mode: 'district' | 'player'; scores: ReturnType<typeof createProvinceScores>; province: string; contribution: number; broadcasts: BroadcastItem[]; playerRows: PlayerRankRow[]; playerId: string; onModeChange: (mode: 'district' | 'player') => void }) {
   return (
     <div className="space-y-3">
-      <div className="space-y-2">
-        {scores.slice(0, 5).map((item, index) => (
-          <div key={item.province} className={`flex justify-between rounded-2xl px-3 py-2 text-sm font-bold ${item.province === province ? 'bg-amber-300/20 text-amber-100' : 'bg-white/10'}`}>
-            <span>{index + 1}. {item.province}</span>
-            <span>{item.score.toLocaleString()}</span>
-          </div>
-        ))}
+      <div className="grid grid-cols-2 gap-2 rounded-2xl bg-white/5 p-1">
+        <button onClick={() => onModeChange('district')} className={`rounded-xl py-2 text-sm font-black ${mode === 'district' ? 'bg-lime-200 text-slate-950' : 'text-slate-200'}`}>{"\u533a\u57df\u699c"}</button>
+        <button onClick={() => onModeChange('player')} className={`rounded-xl py-2 text-sm font-black ${mode === 'player' ? 'bg-cyan-200 text-slate-950' : 'text-slate-200'}`}>{"\u73a9\u5bb6\u699c"}</button>
       </div>
-      <div className="rounded-2xl bg-cyan-300/12 p-3 text-sm text-cyan-50">你为 {province} 贡献 {contribution} 分</div>
+      {mode === 'district' ? (
+        <div className="space-y-3">
+          <div className="space-y-2">
+            {scores.map((item, index) => (
+              <div key={item.province} className={`flex justify-between rounded-2xl px-3 py-2 text-sm font-bold ${item.province === province ? 'bg-amber-300/20 text-amber-100' : 'bg-white/10'}`}>
+                <span>{index + 1}. {item.province}</span>
+                <span>{item.score}</span>
+              </div>
+            ))}
+          </div>
+          <div className="rounded-2xl bg-cyan-300/12 p-3 text-xs text-cyan-50">{"\u4f60\u4e3a"} {province} {"\u8d21\u732e"} {contribution} {"\u5206"}</div>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {playerRows.slice(0, 8).map((item, index) => (
+            <div key={item.id} className={`rounded-2xl px-3 py-2 text-xs font-bold ${item.id === playerId ? 'bg-lime-200/20 text-lime-100' : 'bg-white/10 text-slate-200'}`}>
+              <div className="flex justify-between text-sm font-black"><span>{index + 1}. {item.id}</span><span>{"\u4eca\u65e5"} {item.dailyWeight.toFixed(1)}kg</span></div>
+              <div className="mt-1 grid grid-cols-2 gap-1 text-[11px] text-slate-300">
+                <span>{"\u4eca\u65e5"} {item.dailyCasts} {"\u6746"}</span><span>{"\u603b"} {item.totalCasts} {"\u6746"}</span>
+                <span>{"\u4eca\u65e5"} {item.dailyWeight.toFixed(1)}kg</span><span>{"\u603b"} {item.totalWeight.toFixed(1)}kg</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
       <div className="space-y-2">
         {broadcasts.slice(0, 3).map((item, index) => (
-          <div key={`${item}-${index}`} className="rounded-2xl bg-white/10 px-3 py-2 text-xs text-slate-200">{item}</div>
+          <div key={`${item.id}-${item.fish}-${index}`} className="rounded-2xl bg-white/10 px-3 py-2 text-xs text-slate-200">
+            <BroadcastLine item={item} />
+          </div>
         ))}
       </div>
     </div>
@@ -941,7 +1237,7 @@ function MiniFish({ fish }: { fish: Fish }) {
   );
 }
 
-function ZonePicker({ selectedZoneId, onPick, disabled }: { selectedZoneId: string; onPick: (id: string) => void; disabled: boolean }) {
+function ZonePicker({ selectedZoneId, unlocks, onPick, disabled }: { selectedZoneId: string; unlocks: Record<string, ZoneUnlock>; onPick: (id: string) => void; disabled: boolean }) {
   return (
     <div className="grid grid-cols-2 gap-2">
       {seaZones.map((zone) => (
@@ -955,6 +1251,34 @@ function ZonePicker({ selectedZoneId, onPick, disabled }: { selectedZoneId: stri
           <div className="mt-1 text-xs text-slate-300">消耗 {zone.staminaCost} 体力</div>
         </button>
       ))}
+    </div>
+  );
+}
+
+function ZonePickerUnlocked({ selectedZoneId, unlocks, onPick, disabled }: { selectedZoneId: string; unlocks: Record<string, ZoneUnlock>; onPick: (id: string) => void; disabled: boolean }) {
+  return (
+    <div className="grid grid-cols-2 gap-2">
+      {seaZones.map((zone) => {
+        const unlock = unlocks[zone.id] ?? { unlocked: true, label: "\u5df2\u5f00\u653e" };
+        const locked = !unlock.unlocked;
+        return (
+          <button
+            key={zone.id}
+            disabled={disabled || locked}
+            onClick={() => onPick(zone.id)}
+            className={`rounded-2xl border p-3 text-left disabled:opacity-50 ${selectedZoneId === zone.id ? 'border-cyan-200 bg-cyan-300/20' : locked ? 'border-white/10 bg-black/35' : 'border-white/10 bg-white/10'}`}
+          >
+            <div className="flex items-center justify-between gap-2 font-black">
+              <span>{zone.name}</span>
+              <span className={`rounded-full px-2 py-0.5 text-[10px] ${locked ? 'bg-slate-700 text-slate-300' : 'bg-lime-200 text-slate-950'}`}>
+                {locked ? "\u672a\u89e3\u9501" : "\u5df2\u89e3\u9501"}
+              </span>
+            </div>
+            <div className="mt-1 text-xs text-slate-300">{"\u6d88\u8017"} {zone.staminaCost} {"\u4f53\u529b"}</div>
+            <div className="mt-2 text-[11px] leading-4 text-slate-400">{unlock.label}</div>
+          </button>
+        );
+      })}
     </div>
   );
 }

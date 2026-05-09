@@ -29,6 +29,15 @@ export interface Rod {
   difficulty: number;
 }
 
+export interface Bait {
+  id: string;
+  name: string;
+  price: number;
+  luck: number;
+  rareBoost: number;
+  description: string;
+}
+
 export interface SeaZone {
   id: string;
   name: string;
@@ -45,13 +54,22 @@ export interface Anomaly {
 }
 
 export interface PlayerState {
+  playerId: string;
   coins: number;
   stamina: number;
   province: string;
   ownedRodIds: string[];
   equippedRodId: string;
+  ownedBaitIds: string[];
+  equippedBaitId: string;
   dailyLuckDate: string;
   provinceContribution: number;
+  dailyCasts: number;
+  dailyWeight: number;
+  totalWeight: number;
+  statsDate: string;
+  lastStaminaAt: number;
+  starterGiftClaimed: boolean;
   totalCasts: number;
   newbieWins: number;
 }
@@ -65,4 +83,5 @@ export interface ResultState {
   weight?: number;
   message: string;
   reviveOffered: boolean;
+  isNew?: boolean;
 }

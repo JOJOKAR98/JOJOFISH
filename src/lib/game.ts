@@ -1,5 +1,5 @@
-import { anomalies, fishPool, hiddenKings, provinces, rods } from '../data/gameData';
-import type { Anomaly, Fish, PlayerState, Rod, SeaZone } from '../types';
+import { anomalies, baits, fishPool, hiddenKings, provinces, rods } from '../data/gameData';
+import type { Anomaly, Bait, Fish, PlayerState, Rod, SeaZone } from '../types';
 
 export const todayKey = () => {
   const date = new Date();
@@ -19,13 +19,22 @@ export const getDailyKing = () => {
 };
 
 export const createDefaultPlayer = (): PlayerState => ({
+  playerId: '',
   coins: 180,
-  stamina: 8,
-  province: '天河区',
+  stamina: 100,
+  province: provinces[0],
   ownedRodIds: ['basic'],
   equippedRodId: 'basic',
+  ownedBaitIds: ['plain'],
+  equippedBaitId: 'plain',
   dailyLuckDate: '',
   provinceContribution: 0,
+  dailyCasts: 0,
+  dailyWeight: 0,
+  totalWeight: 0,
+  statsDate: todayKey(),
+  lastStaminaAt: Date.now(),
+  starterGiftClaimed: false,
   totalCasts: 0,
   newbieWins: 0,
 });
@@ -34,10 +43,15 @@ export const getEquippedRod = (player: PlayerState): Rod => {
   return rods.find((rod) => rod.id === player.equippedRodId) ?? rods[0];
 };
 
+export const getEquippedBait = (player: PlayerState): Bait => {
+  return baits.find((bait) => bait.id === player.equippedBaitId) ?? baits[0];
+};
+
 export const getLuck = (player: PlayerState) => {
   const rod = getEquippedRod(player);
+  const bait = getEquippedBait(player);
   const daily = player.dailyLuckDate === todayKey() ? 12 : 0;
-  return rod.luck + daily;
+  return rod.luck + bait.luck + daily;
 };
 
 export const maybeAnomaly = (zone: SeaZone): Anomaly => {
@@ -81,13 +95,9 @@ export const pickFish = (player: PlayerState, zone: SeaZone, anomaly: Anomaly): 
 };
 
 export const createProvinceScores = (playerProvince: string, playerContribution: number) => {
-  const scores = provinces.map((province, index) => ({
+  const scores = provinces.map((province) => ({
     province,
-    score:
-      9200 -
-      index * 610 +
-      randomInt(-220, 360) +
-      (province === playerProvince ? playerContribution : 0),
+    score: province === playerProvince ? playerContribution : 0,
   }));
 
   return scores.sort((a, b) => b.score - a.score);
