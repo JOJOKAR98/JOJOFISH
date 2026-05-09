@@ -14,6 +14,12 @@ import {
   randomInt,
   todayKey,
 } from './lib/game';
+import {
+  fetchDistrictScores,
+  isOnlineLeaderboardEnabled,
+  recordCatchOnline,
+  type DistrictScore,
+} from './lib/leaderboard';
 import type { Anomaly, Fish, Phase, PlayerState, ResultState } from './types';
 
 const SAVE_KEY = 'deep-sea-province-fishing-save-v2';
@@ -230,6 +236,8 @@ function App() {
   const [locationMessage, setLocationMessage] = useState('定位后加入广州区服 PK');
   const [codex, setCodex] = useState<Record<string, FishRecord>>(() => loadCodex());
   const [playerIdInput, setPlayerIdInput] = useState('');
+  const [remoteProvinceScores, setRemoteProvinceScores] = useState<DistrictScore[]>([]);
+  const [leaderboardOnline, setLeaderboardOnline] = useState(isOnlineLeaderboardEnabled());
   const intendedSuccessRef = useRef(true);
   const fightResolvedRef = useRef(false);
 
@@ -238,10 +246,11 @@ function App() {
   const equippedBait = useMemo(() => getEquippedBait(player), [player]);
   const luck = useMemo(() => getLuck(player), [player]);
   const zoneUnlocks = useMemo(() => getZoneUnlocks(player, codex), [player, codex]);
-  const provinceScores = useMemo(
+  const localProvinceScores = useMemo(
     () => createProvinceScores(player.province, player.provinceContribution),
     [player.province, player.provinceContribution, result],
   );
+  const provinceScores = remoteProvinceScores.length > 0 ? remoteProvinceScores : localProvinceScores;
   const provinceRank = getProvinceRank(provinceScores, player.province);
   const sceneClass =
     anomaly.id !== 'none'
@@ -272,6 +281,35 @@ function App() {
   useEffect(() => {
     localStorage.setItem(CODEX_KEY, JSON.stringify(codex));
   }, [codex]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadScores = async () => {
+      if (!isOnlineLeaderboardEnabled()) {
+        setLeaderboardOnline(false);
+        setRemoteProvinceScores([]);
+        return;
+      }
+
+      try {
+        const scores = await fetchDistrictScores();
+        if (cancelled) return;
+        setRemoteProvinceScores(scores);
+        setLeaderboardOnline(true);
+      } catch {
+        if (cancelled) return;
+        setLeaderboardOnline(false);
+      }
+    };
+
+    void loadScores();
+    const timer = window.setInterval(loadScores, 15000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, []);
 
   useEffect(() => {
     if (zoneUnlocks[selectedZoneId]?.unlocked !== false) return;
@@ -448,6 +486,26 @@ function App() {
       totalWeight: current.totalWeight + (finalSuccess ? weight : 0),
       newbieWins: current.totalCasts < 5 && finalSuccess ? current.newbieWins + 1 : current.newbieWins,
     }));
+
+    if (finalSuccess && contribution > 0) {
+      void recordCatchOnline({
+        playerId: player.playerId || 'UNKNOWN',
+        province: player.province,
+        fishId: hookedFish.id,
+        fishName: hookedFish.name,
+        rarity: hookedFish.rarity,
+        weight,
+        score: contribution,
+      })
+        .then(fetchDistrictScores)
+        .then((scores) => {
+          setRemoteProvinceScores(scores);
+          setLeaderboardOnline(true);
+        })
+        .catch(() => {
+          setLeaderboardOnline(false);
+        });
+    }
 
     if (finalSuccess && shouldBroadcastFish(hookedFish.rarity)) {
       setBroadcasts((items) => [
@@ -759,7 +817,7 @@ function App() {
               onClose={() => setSheet(null)}
             >
               {(sheet === 'shopRod' || sheet === 'shopBait') && <Shop mode={sheet === 'shopRod' ? 'rod' : 'bait'} player={player} equippedRodId={player.equippedRodId} equippedBaitId={player.equippedBaitId} onBuyRod={buyRod} onBuyBait={buyBait} onModeChange={(mode) => setSheet(mode === 'rod' ? 'shopRod' : 'shopBait')} />}
-              {(sheet === 'rankDistrict' || sheet === 'rankPlayer') && <Rank mode={sheet === 'rankDistrict' ? 'district' : 'player'} scores={provinceScores} province={player.province} contribution={player.provinceContribution} broadcasts={broadcasts} playerRows={playerRankRows} playerId={player.playerId} onModeChange={(mode) => setSheet(mode === 'district' ? 'rankDistrict' : 'rankPlayer')} />}
+              {(sheet === 'rankDistrict' || sheet === 'rankPlayer') && <Rank mode={sheet === 'rankDistrict' ? 'district' : 'player'} scores={provinceScores} province={player.province} contribution={player.provinceContribution} broadcasts={broadcasts} playerRows={playerRankRows} playerId={player.playerId} leaderboardOnline={leaderboardOnline} onModeChange={(mode) => setSheet(mode === 'district' ? 'rankDistrict' : 'rankPlayer')} />}
               {sheet === 'zone' && (
                 <ZonePickerUnlocked selectedZoneId={selectedZoneId} unlocks={zoneUnlocks} onPick={(id) => { setSelectedZoneId(id); setSheet(null); }} disabled={!canCast} />
               )}
@@ -1096,12 +1154,15 @@ function Shop({ mode, player, equippedRodId, equippedBaitId, onBuyRod, onBuyBait
   );
 }
 
-function Rank({ mode, scores, province, contribution, broadcasts, playerRows, playerId, onModeChange }: { mode: 'district' | 'player'; scores: ReturnType<typeof createProvinceScores>; province: string; contribution: number; broadcasts: BroadcastItem[]; playerRows: PlayerRankRow[]; playerId: string; onModeChange: (mode: 'district' | 'player') => void }) {
+function Rank({ mode, scores, province, contribution, broadcasts, playerRows, playerId, leaderboardOnline, onModeChange }: { mode: 'district' | 'player'; scores: DistrictScore[]; province: string; contribution: number; broadcasts: BroadcastItem[]; playerRows: PlayerRankRow[]; playerId: string; leaderboardOnline: boolean; onModeChange: (mode: 'district' | 'player') => void }) {
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-2 gap-2 rounded-2xl bg-white/5 p-1">
         <button onClick={() => onModeChange('district')} className={`rounded-xl py-2 text-sm font-black ${mode === 'district' ? 'bg-lime-200 text-slate-950' : 'text-slate-200'}`}>{"\u533a\u57df\u699c"}</button>
         <button onClick={() => onModeChange('player')} className={`rounded-xl py-2 text-sm font-black ${mode === 'player' ? 'bg-cyan-200 text-slate-950' : 'text-slate-200'}`}>{"\u73a9\u5bb6\u699c"}</button>
+      </div>
+      <div className={`rounded-2xl px-3 py-2 text-[11px] font-black ${leaderboardOnline ? 'bg-lime-200/15 text-lime-100' : 'bg-amber-200/12 text-amber-100'}`}>
+        {leaderboardOnline ? "\u8054\u7f51\u699c\u5355\u5df2\u540c\u6b65" : "\u672a\u914d\u7f6e\u8054\u7f51\u699c\u5355\uff0c\u6682\u7528\u672c\u5730\u6570\u636e"}
       </div>
       {mode === 'district' ? (
         <div className="space-y-3">
