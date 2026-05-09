@@ -1,0 +1,26 @@
+create table if not exists district_scores (
+  score_date date not null,
+  province text not null,
+  score integer not null default 0,
+  updated_at timestamptz not null default now(),
+  primary key (score_date, province)
+);
+
+create table if not exists catch_events (
+  id bigserial primary key,
+  score_date date not null,
+  player_id text not null,
+  province text not null,
+  fish_id text not null,
+  fish_name text not null,
+  rarity text not null,
+  weight numeric not null,
+  score integer not null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists catch_events_score_date_idx
+  on catch_events (score_date);
+
+create index if not exists catch_events_player_id_idx
+  on catch_events (player_id);

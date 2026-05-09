@@ -17,21 +17,14 @@ type CatchPayload = {
   score: number;
 };
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
+const apiBase = (import.meta.env.VITE_LEADERBOARD_API_URL as string | undefined) || '/api';
 
-export const isOnlineLeaderboardEnabled = () => Boolean(supabaseUrl && supabaseAnonKey);
+export const isOnlineLeaderboardEnabled = () => Boolean(apiBase);
 
-const supabaseFetch = async (path: string, init?: RequestInit) => {
-  if (!supabaseUrl || !supabaseAnonKey) {
-    throw new Error('Online leaderboard is not configured');
-  }
-
-  const response = await fetch(`${supabaseUrl.replace(/\/$/, '')}${path}`, {
+const apiFetch = async (path: string, init?: RequestInit) => {
+  const response = await fetch(`${apiBase.replace(/\/$/, '')}${path}`, {
     ...init,
     headers: {
-      apikey: supabaseAnonKey,
-      Authorization: `Bearer ${supabaseAnonKey}`,
       'Content-Type': 'application/json',
       ...init?.headers,
     },
@@ -55,29 +48,24 @@ export const normalizeDistrictScores = (scores: DistrictScore[]) => {
 };
 
 export const fetchDistrictScores = async () => {
-  const scoreDate = todayKey();
-  const query = new URLSearchParams({
-    select: 'province,score',
-    score_date: `eq.${scoreDate}`,
-    order: 'score.desc',
-  });
-  const response = await supabaseFetch(`/rest/v1/district_scores?${query.toString()}`);
+  const query = new URLSearchParams({ date: todayKey() });
+  const response = await apiFetch(`/leaderboard/districts?${query.toString()}`);
   const rows = (await response.json()) as DistrictScore[];
   return normalizeDistrictScores(rows);
 };
 
 export const recordCatchOnline = async (payload: CatchPayload) => {
-  await supabaseFetch('/rest/v1/rpc/record_catch', {
+  await apiFetch('/catches', {
     method: 'POST',
     body: JSON.stringify({
-      p_score_date: todayKey(),
-      p_player_id: payload.playerId,
-      p_province: payload.province,
-      p_fish_id: payload.fishId,
-      p_fish_name: payload.fishName,
-      p_rarity: payload.rarity,
-      p_weight: payload.weight,
-      p_score: payload.score,
+      scoreDate: todayKey(),
+      playerId: payload.playerId,
+      province: payload.province,
+      fishId: payload.fishId,
+      fishName: payload.fishName,
+      rarity: payload.rarity,
+      weight: payload.weight,
+      score: payload.score,
     }),
   });
 };

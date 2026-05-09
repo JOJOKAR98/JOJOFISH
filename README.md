@@ -1,5 +1,22 @@
 # JOJOFISH.COM MVP
 
+## PostgreSQL leaderboard
+
+The regional leaderboard uses a Node API plus PostgreSQL. The browser never connects to PostgreSQL directly.
+
+```bash
+psql "$DATABASE_URL" -f server/schema.sql
+DATABASE_URL="postgres://user:password@127.0.0.1:5432/jojofish" PORT=8787 npm run server
+```
+
+Frontend config:
+
+```bash
+VITE_LEADERBOARD_API_URL=/api
+```
+
+If the API is on another domain, use `VITE_LEADERBOARD_API_URL=https://your-domain.com/api`.
+
 React + TypeScript + Tailwind CSS 单页小游戏原型。
 
 ## 运行
