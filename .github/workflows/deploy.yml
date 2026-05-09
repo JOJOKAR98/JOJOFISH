@@ -20,7 +20,9 @@ jobs:
       SSH_HOST: ${{ secrets.SG_HOST }}
       SSH_USER: ${{ secrets.SG_USER }}
       SSH_PORT: ${{ secrets.SG_PORT || '22' }}
-
+      VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+      VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+   
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
