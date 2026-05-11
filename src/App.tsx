@@ -16,9 +16,11 @@ import {
 } from './lib/game';
 import {
   fetchDistrictScores,
+  fetchPlayerRankRows,
   isOnlineLeaderboardEnabled,
   recordCatchOnline,
   type DistrictScore,
+  type PlayerRankRow,
 } from './lib/leaderboard';
 import type { Anomaly, Fish, Phase, PlayerState, ResultState } from './types';
 
@@ -87,14 +89,6 @@ const getZoneUnlocks = (player: PlayerState, codex: Record<string, FishRecord>):
 const MAX_STAMINA = 100;
 const STAMINA_RESTORE_MS = 60000;
 const STAMINA_RESTORE_AMOUNT = 5;
-
-type PlayerRankRow = {
-  id: string;
-  dailyCasts: number;
-  dailyWeight: number;
-  totalCasts: number;
-  totalWeight: number;
-};
 
 const playerSeeds: PlayerRankRow[] = [];
 
@@ -237,6 +231,7 @@ function App() {
   const [codex, setCodex] = useState<Record<string, FishRecord>>(() => loadCodex());
   const [playerIdInput, setPlayerIdInput] = useState('');
   const [remoteProvinceScores, setRemoteProvinceScores] = useState<DistrictScore[]>([]);
+  const [remotePlayerRows, setRemotePlayerRows] = useState<PlayerRankRow[]>([]);
   const [leaderboardOnline, setLeaderboardOnline] = useState(isOnlineLeaderboardEnabled());
   const intendedSuccessRef = useRef(true);
   const fightResolvedRef = useRef(false);
@@ -267,6 +262,7 @@ function App() {
           id: player.playerId || 'YOU',
           dailyCasts: player.dailyCasts,
           dailyWeight: Number(player.dailyWeight.toFixed(1)),
+          dailyScore: player.provinceContribution,
           totalCasts: player.totalCasts,
           totalWeight: Number(player.totalWeight.toFixed(1)),
         },
@@ -289,13 +285,18 @@ function App() {
       if (!isOnlineLeaderboardEnabled()) {
         setLeaderboardOnline(false);
         setRemoteProvinceScores([]);
+        setRemotePlayerRows([]);
         return;
       }
 
       try {
-        const scores = await fetchDistrictScores();
+        const [scores, rows] = await Promise.all([
+          fetchDistrictScores(),
+          fetchPlayerRankRows(player.playerId),
+        ]);
         if (cancelled) return;
         setRemoteProvinceScores(scores);
+        setRemotePlayerRows(rows);
         setLeaderboardOnline(true);
       } catch {
         if (cancelled) return;
@@ -309,7 +310,7 @@ function App() {
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, []);
+  }, [player.playerId]);
 
   useEffect(() => {
     if (zoneUnlocks[selectedZoneId]?.unlocked !== false) return;
@@ -497,9 +498,13 @@ function App() {
         weight,
         score: contribution,
       })
-        .then(fetchDistrictScores)
-        .then((scores) => {
+        .then(() => Promise.all([
+          fetchDistrictScores(),
+          fetchPlayerRankRows(player.playerId),
+        ]))
+        .then(([scores, rows]) => {
           setRemoteProvinceScores(scores);
+          setRemotePlayerRows(rows);
           setLeaderboardOnline(true);
         })
         .catch(() => {
@@ -817,7 +822,7 @@ function App() {
               onClose={() => setSheet(null)}
             >
               {(sheet === 'shopRod' || sheet === 'shopBait') && <Shop mode={sheet === 'shopRod' ? 'rod' : 'bait'} player={player} equippedRodId={player.equippedRodId} equippedBaitId={player.equippedBaitId} onBuyRod={buyRod} onBuyBait={buyBait} onModeChange={(mode) => setSheet(mode === 'rod' ? 'shopRod' : 'shopBait')} />}
-              {(sheet === 'rankDistrict' || sheet === 'rankPlayer') && <Rank mode={sheet === 'rankDistrict' ? 'district' : 'player'} scores={provinceScores} province={player.province} contribution={player.provinceContribution} broadcasts={broadcasts} playerRows={playerRankRows} playerId={player.playerId} leaderboardOnline={leaderboardOnline} onModeChange={(mode) => setSheet(mode === 'district' ? 'rankDistrict' : 'rankPlayer')} />}
+              {(sheet === 'rankDistrict' || sheet === 'rankPlayer') && <Rank mode={sheet === 'rankDistrict' ? 'district' : 'player'} scores={provinceScores} province={player.province} contribution={player.provinceContribution} broadcasts={broadcasts} playerRows={remotePlayerRows.length > 0 ? remotePlayerRows : playerRankRows} playerId={player.playerId} leaderboardOnline={leaderboardOnline} onModeChange={(mode) => setSheet(mode === 'district' ? 'rankDistrict' : 'rankPlayer')} />}
               {sheet === 'zone' && (
                 <ZonePickerUnlocked selectedZoneId={selectedZoneId} unlocks={zoneUnlocks} onPick={(id) => { setSelectedZoneId(id); setSheet(null); }} disabled={!canCast} />
               )}
@@ -1180,10 +1185,10 @@ function Rank({ mode, scores, province, contribution, broadcasts, playerRows, pl
         <div className="space-y-2">
           {playerRows.slice(0, 8).map((item, index) => (
             <div key={item.id} className={`rounded-2xl px-3 py-2 text-xs font-bold ${item.id === playerId ? 'bg-lime-200/20 text-lime-100' : 'bg-white/10 text-slate-200'}`}>
-              <div className="flex justify-between text-sm font-black"><span>{index + 1}. {item.id}</span><span>{"\u4eca\u65e5"} {item.dailyWeight.toFixed(1)}kg</span></div>
+              <div className="flex justify-between text-sm font-black"><span>{item.rank ?? index + 1}. {item.id}</span><span>{"\u4eca\u65e5"} {item.dailyWeight.toFixed(1)}kg</span></div>
               <div className="mt-1 grid grid-cols-2 gap-1 text-[11px] text-slate-300">
-                <span>{"\u4eca\u65e5"} {item.dailyCasts} {"\u6746"}</span><span>{"\u603b"} {item.totalCasts} {"\u6746"}</span>
-                <span>{"\u4eca\u65e5"} {item.dailyWeight.toFixed(1)}kg</span><span>{"\u603b"} {item.totalWeight.toFixed(1)}kg</span>
+                <span>{"\u4eca\u65e5"} {item.dailyCasts} {"\u6761"}</span><span>{"\u4eca\u65e5"} {item.dailyScore} {"\u5206"}</span>
+                <span>{"\u603b"} {item.totalCasts} {"\u6761"}</span><span>{"\u603b"} {item.totalWeight.toFixed(1)}kg</span>
               </div>
             </div>
           ))}

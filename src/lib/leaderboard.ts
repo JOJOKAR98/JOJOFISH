@@ -7,6 +7,16 @@ export type DistrictScore = {
   score: number;
 };
 
+export type PlayerRankRow = {
+  id: string;
+  rank?: number;
+  dailyCasts: number;
+  dailyWeight: number;
+  dailyScore: number;
+  totalCasts: number;
+  totalWeight: number;
+};
+
 type CatchPayload = {
   playerId: string;
   province: string;
@@ -52,6 +62,13 @@ export const fetchDistrictScores = async () => {
   const response = await apiFetch(`/leaderboard/districts?${query.toString()}`);
   const rows = (await response.json()) as DistrictScore[];
   return normalizeDistrictScores(rows);
+};
+
+export const fetchPlayerRankRows = async (playerId?: string) => {
+  const query = new URLSearchParams({ date: todayKey(), limit: '20' });
+  if (playerId) query.set('playerId', playerId);
+  const response = await apiFetch(`/leaderboard/players?${query.toString()}`);
+  return (await response.json()) as PlayerRankRow[];
 };
 
 export const recordCatchOnline = async (payload: CatchPayload) => {

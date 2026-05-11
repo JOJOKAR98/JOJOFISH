@@ -24,3 +24,6 @@ create index if not exists catch_events_score_date_idx
 
 create index if not exists catch_events_player_id_idx
   on catch_events (player_id);
+
+create index if not exists catch_events_score_date_weight_idx
+  on catch_events (score_date, weight desc);

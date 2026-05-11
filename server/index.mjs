@@ -65,6 +65,71 @@ app.get('/api/leaderboard/districts', async (request, response) => {
   );
 });
 
+app.get('/api/leaderboard/players', async (request, response) => {
+  const scoreDate = typeof request.query.date === 'string' && isValidDate(request.query.date)
+    ? request.query.date
+    : new Date().toISOString().slice(0, 10);
+  const requestedPlayerId = typeof request.query.playerId === 'string'
+    ? request.query.playerId.slice(0, 32)
+    : '';
+  const requestedLimit = Number(request.query.limit);
+  const limit = Number.isFinite(requestedLimit)
+    ? Math.min(50, Math.max(1, Math.trunc(requestedLimit)))
+    : 20;
+
+  const result = await pool.query(
+    `
+      with daily as (
+        select
+          player_id,
+          count(*)::int as daily_catches,
+          coalesce(sum(weight), 0)::float as daily_weight,
+          coalesce(sum(score), 0)::int as daily_score
+        from catch_events
+        where score_date = $1
+        group by player_id
+      ),
+      totals as (
+        select
+          player_id,
+          count(*)::int as total_catches,
+          coalesce(sum(weight), 0)::float as total_weight
+        from catch_events
+        group by player_id
+      ),
+      ranked as (
+        select
+          daily.player_id,
+          daily.daily_catches,
+          daily.daily_weight,
+          daily.daily_score,
+          coalesce(totals.total_catches, 0)::int as total_catches,
+          coalesce(totals.total_weight, 0)::float as total_weight,
+          row_number() over (
+            order by daily.daily_weight desc, daily.daily_score desc, daily.daily_catches desc, daily.player_id asc
+          )::int as rank
+        from daily
+        left join totals on totals.player_id = daily.player_id
+      )
+      select *
+      from ranked
+      where rank <= $2 or ($3 <> '' and player_id = $3)
+      order by rank asc
+    `,
+    [scoreDate, limit, requestedPlayerId],
+  );
+
+  response.json(result.rows.map((row) => ({
+    id: row.player_id,
+    rank: Number(row.rank),
+    dailyCasts: Number(row.daily_catches),
+    dailyWeight: Number(row.daily_weight),
+    dailyScore: Number(row.daily_score),
+    totalCasts: Number(row.total_catches),
+    totalWeight: Number(row.total_weight),
+  })));
+});
+
 app.post('/api/catches', async (request, response) => {
   const {
     scoreDate,
