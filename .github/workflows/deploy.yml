@@ -17,16 +17,16 @@ jobs:
 
     env:
       DEPLOY_PATH: /var/www/jojofish.wakaka007.cn/current
-      SSH_HOST: \${{ secrets.SG_HOST }}
-      SSH_USER: \${{ secrets.SG_USER }}
-      SSH_PORT: \${{ secrets.SG_PORT || '22' }}
+      SSH_HOST: ${{ secrets.SG_HOST }}
+      SSH_USER: ${{ secrets.SG_USER }}
+      SSH_PORT: ${{ secrets.SG_PORT || '22' }}
       VITE_LEADERBOARD_API_URL: /api
-      DATABASE_URL: \${{ secrets.DATABASE_URL }}
-      PGSSL: \${{ secrets.PGSSL || 'false' }}
-      CORS_ORIGIN: \${{ secrets.CORS_ORIGIN || 'true' }}
-      PORT: \${{ secrets.PORT || '8787' }}
-      APP_PROCESS_NAME: \${{ secrets.APP_PROCESS_NAME || 'jojofish' }}
-      HEALTHCHECK_URL: \${{ secrets.HEALTHCHECK_URL || 'https://jojofish.wakaka007.cn' }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      PGSSL: ${{ secrets.PGSSL || 'false' }}
+      CORS_ORIGIN: ${{ secrets.CORS_ORIGIN || 'true' }}
+      PORT: ${{ secrets.PORT || '8787' }}
+      APP_PROCESS_NAME: ${{ secrets.APP_PROCESS_NAME || 'jojofish' }}
+      HEALTHCHECK_URL: ${{ secrets.HEALTHCHECK_URL || 'https://jojofish.wakaka007.cn' }}
 
     steps:
       - name: Check out repository
@@ -35,7 +35,7 @@ jobs:
       - name: Check deployment secrets
         id: deploy_config
         env:
-          SSH_PRIVATE_KEY: \${{ secrets.SG_SSH_KEY }}
+          SSH_PRIVATE_KEY: ${{ secrets.SG_SSH_KEY }}
         run: |
           if [ -n "$SSH_HOST" ] && [ -n "$SSH_USER" ] && [ -n "$SSH_PRIVATE_KEY" ]; then
             echo "ready=true" >> "$GITHUB_OUTPUT"
@@ -62,7 +62,7 @@ jobs:
       - name: Configure SSH
         if: steps.deploy_config.outputs.ready == 'true'
         env:
-          SSH_PRIVATE_KEY: \${{ secrets.SG_SSH_KEY }}
+          SSH_PRIVATE_KEY: ${{ secrets.SG_SSH_KEY }}
         run: |
           install -m 700 -d ~/.ssh
           printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/jojofish_deploy_key
@@ -128,7 +128,7 @@ jobs:
           set -a
           [ -f .env ] && . ./.env
           set +a
-          port_value="\${PORT:-8787}"
+          port_value="${PORT:-8787}"
 
           if command -v pm2 >/dev/null 2>&1; then
             if pm2 describe "$process_name" >/dev/null 2>&1; then
@@ -143,9 +143,9 @@ jobs:
             sudo -n systemctl restart "$process_name"
           else
             if command -v fuser >/dev/null 2>&1; then
-              fuser -k "\${port_value}/tcp" || true
+              fuser -k "${port_value}/tcp" || true
             elif command -v lsof >/dev/null 2>&1; then
-              kill \$(lsof -ti tcp:"$port_value") 2>/dev/null || true
+              kill $(lsof -ti tcp:"$port_value") 2>/dev/null || true
             fi
             nohup node server/index.mjs > jojofish-api.log 2>&1 &
             sleep 3
