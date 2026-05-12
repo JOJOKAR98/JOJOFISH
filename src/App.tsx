@@ -1487,8 +1487,19 @@ function SmallNav({ icon, label, onClick }: { icon: React.ReactNode; label: stri
 }
 
 function ResultCard({ result, onClose }: { result: ResultState; onClose: () => void }) {
+  const [canDismiss, setCanDismiss] = useState(false);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setCanDismiss(true), 420);
+    return () => window.clearTimeout(timer);
+  }, [result]);
+
+  const closeResult = () => {
+    if (canDismiss) onClose();
+  };
+
   return (
-    <div onClick={onClose} className="absolute inset-0 z-40 flex items-center justify-center bg-slate-950/38 px-4 backdrop-blur-[1px]">
+    <div className="absolute inset-0 z-40 flex items-center justify-center bg-slate-950/38 px-4 backdrop-blur-[1px]">
       <div className="result-panel strong-panel relative max-h-[calc(100%-170px)] w-full max-w-[326px] overflow-y-auto rounded-[24px] p-4 text-center shadow-glow backdrop-blur">
         {result.success && result.fish ? (
           <>
@@ -1522,7 +1533,14 @@ function ResultCard({ result, onClose }: { result: ResultState; onClose: () => v
             <p className="mt-1 text-xs text-cyan-100">{"\u5b83\u8fd8\u5728\u4e0b\u9762\u3002"}</p>
           </>
         )}
-        <div className="mt-3 border-t border-white/10 pt-2 text-[10px] font-bold text-slate-400">{"\u70b9\u51fb\u4efb\u610f\u4f4d\u7f6e\u7ee7\u7eed"}</div>
+        <button
+          type="button"
+          disabled={!canDismiss}
+          onClick={closeResult}
+          className="mt-3 h-12 w-full rounded-2xl bg-lime-200 text-base font-black text-slate-950 shadow-glow active:scale-95 disabled:opacity-55"
+        >
+          {"\u7ee7\u7eed\u9493\u9c7c"}
+        </button>
       </div>
     </div>
   );
