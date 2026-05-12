@@ -25,6 +25,8 @@ jobs:
       PGSSL: ${{ secrets.PGSSL || 'false' }}
       CORS_ORIGIN: ${{ secrets.CORS_ORIGIN || 'true' }}
       PORT: ${{ secrets.PORT || '8787' }}
+      APP_PROCESS_NAME: ${{ secrets.APP_PROCESS_NAME || 'jojofish' }}
+      HEALTHCHECK_URL: ${{ secrets.HEALTHCHECK_URL || 'https://jojofish.wakaka007.cn' }}
    
     steps:
       - name: Check out repository
@@ -107,3 +109,16 @@ jobs:
         run: |
           ssh -i ~/.ssh/jojofish_deploy_key -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
             "test -f '$DEPLOY_PATH/index.html' && test -f '$DEPLOY_PATH/server/index.mjs' && find '$DEPLOY_PATH' -type d -exec chmod 755 {} + && find '$DEPLOY_PATH' -type f -exec chmod 644 {} +"
+
+      - name: Restart API process
+        if: steps.deploy_config.outputs.ready == 'true'
+        run: |
+          PROCESS_Q=$(printf '%q' "$APP_PROCESS_NAME")
+          ssh -i ~/.ssh/jojofish_deploy_key -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
+            "set -e; cd '$DEPLOY_PATH'; if command -v pm2 >/dev/null 2>&1; then if pm2 describe $PROCESS_Q >/dev/null 2>&1; then pm2 reload $PROCESS_Q --update-env; else pm2 start server/index.mjs --name $PROCESS_Q --update-env; fi; pm2 save || true; elif command -v systemctl >/dev/null 2>&1 && systemctl --user is-active --quiet $PROCESS_Q; then systemctl --user restart $PROCESS_Q; elif command -v systemctl >/dev/null 2>&1 && systemctl is-active --quiet $PROCESS_Q; then sudo -n systemctl restart $PROCESS_Q; else echo 'No pm2 or systemd process named' $PROCESS_Q 'was found.'; exit 1; fi"
+
+      - name: Verify deployed API
+        if: steps.deploy_config.outputs.ready == 'true'
+        run: |
+          curl -fsS "$HEALTHCHECK_URL/api/health"
+          curl -fsS "$HEALTHCHECK_URL/api/broadcasts"
