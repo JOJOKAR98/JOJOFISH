@@ -4,7 +4,7 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        display: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        display: ['"Courier New"', '"Trebuchet MS"', 'Verdana', 'sans-serif'],
       },
       boxShadow: {
         glow: '0 0 34px rgba(34, 211, 238, 0.28)',

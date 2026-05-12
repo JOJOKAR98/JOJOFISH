@@ -4,7 +4,7 @@ export type Phase = 'idle' | 'waiting' | 'reeling' | 'result';
 
 export type DirectionEventType = 'left' | 'right' | 'dive';
 
-export type FailureReason = 'escaped' | 'snapped' | 'timeout';
+export type FailureReason = 'escaped' | 'timeout';
 
 export interface Fish {
   id: string;
@@ -38,6 +38,24 @@ export interface Bait {
   description: string;
 }
 
+export interface FishingCharacter {
+  id: string;
+  name: string;
+  title: string;
+  price: number;
+  luck: number;
+  focus: number;
+  staminaSaver: number;
+  description: string;
+  palette: {
+    skin: string;
+    hair: string;
+    hat: string;
+    shirt: string;
+    pants: string;
+  };
+}
+
 export interface SeaZone {
   id: string;
   name: string;
@@ -62,11 +80,15 @@ export interface PlayerState {
   equippedRodId: string;
   ownedBaitIds: string[];
   equippedBaitId: string;
+  ownedCharacterIds: string[];
+  equippedCharacterId: string;
   dailyLuckDate: string;
   provinceContribution: number;
   dailyCasts: number;
   dailyWeight: number;
+  dailyCoins: number;
   totalWeight: number;
+  totalCoins: number;
   statsDate: string;
   lastStaminaAt: number;
   starterGiftClaimed: boolean;
