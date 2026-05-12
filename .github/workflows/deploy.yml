@@ -17,17 +17,17 @@ jobs:
 
     env:
       DEPLOY_PATH: /var/www/jojofish.wakaka007.cn/current
-      SSH_HOST: ${{ secrets.SG_HOST }}
-      SSH_USER: ${{ secrets.SG_USER }}
-      SSH_PORT: ${{ secrets.SG_PORT || '22' }}
+      SSH_HOST: \${{ secrets.SG_HOST }}
+      SSH_USER: \${{ secrets.SG_USER }}
+      SSH_PORT: \${{ secrets.SG_PORT || '22' }}
       VITE_LEADERBOARD_API_URL: /api
-      DATABASE_URL: ${{ secrets.DATABASE_URL }}
-      PGSSL: ${{ secrets.PGSSL || 'false' }}
-      CORS_ORIGIN: ${{ secrets.CORS_ORIGIN || 'true' }}
-      PORT: ${{ secrets.PORT || '8787' }}
-      APP_PROCESS_NAME: ${{ secrets.APP_PROCESS_NAME || 'jojofish' }}
-      HEALTHCHECK_URL: ${{ secrets.HEALTHCHECK_URL || 'https://jojofish.wakaka007.cn' }}
-   
+      DATABASE_URL: \${{ secrets.DATABASE_URL }}
+      PGSSL: \${{ secrets.PGSSL || 'false' }}
+      CORS_ORIGIN: \${{ secrets.CORS_ORIGIN || 'true' }}
+      PORT: \${{ secrets.PORT || '8787' }}
+      APP_PROCESS_NAME: \${{ secrets.APP_PROCESS_NAME || 'jojofish' }}
+      HEALTHCHECK_URL: \${{ secrets.HEALTHCHECK_URL || 'https://jojofish.wakaka007.cn' }}
+
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -35,7 +35,7 @@ jobs:
       - name: Check deployment secrets
         id: deploy_config
         env:
-          SSH_PRIVATE_KEY: ${{ secrets.SG_SSH_KEY }}
+          SSH_PRIVATE_KEY: \${{ secrets.SG_SSH_KEY }}
         run: |
           if [ -n "$SSH_HOST" ] && [ -n "$SSH_USER" ] && [ -n "$SSH_PRIVATE_KEY" ]; then
             echo "ready=true" >> "$GITHUB_OUTPUT"
@@ -62,7 +62,7 @@ jobs:
       - name: Configure SSH
         if: steps.deploy_config.outputs.ready == 'true'
         env:
-          SSH_PRIVATE_KEY: ${{ secrets.SG_SSH_KEY }}
+          SSH_PRIVATE_KEY: \${{ secrets.SG_SSH_KEY }}
         run: |
           install -m 700 -d ~/.ssh
           printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/jojofish_deploy_key
@@ -91,21 +91,26 @@ jobs:
       - name: Configure PostgreSQL API
         if: steps.deploy_config.outputs.ready == 'true'
         run: |
-          if [ -n "$DATABASE_URL" ]; then
-            DB_URL_Q=$(printf '%q' "$DATABASE_URL")
-            PGSSL_Q=$(printf '%q' "$PGSSL")
-            CORS_Q=$(printf '%q' "$CORS_ORIGIN")
-            PORT_Q=$(printf '%q' "$PORT")
-            ssh -i ~/.ssh/jojofish_deploy_key -p "$SSH_PORT" "$SSH_USER@$SSH_HOST"               "cd '$DEPLOY_PATH' && printf 'DATABASE_URL=%s
-PGSSL=%s
-CORS_ORIGIN=%s
-PORT=%s
-' $DB_URL_Q $PGSSL_Q $CORS_Q $PORT_Q > .env && chmod 600 .env"
-          else
-            ssh -i ~/.ssh/jojofish_deploy_key -p "$SSH_PORT" "$SSH_USER@$SSH_HOST"               "cd '$DEPLOY_PATH' && test -f .env || (echo 'DATABASE_URL secret is not set and no existing .env was found.'; exit 1)"
+          ssh -i ~/.ssh/jojofish_deploy_key -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
+            "cd '$DEPLOY_PATH' && bash -s --" "$DATABASE_URL" "$PGSSL" "$CORS_ORIGIN" "$PORT" <<'REMOTE'
+          set -e
+          if [ -n "$1" ]; then
+            {
+              printf 'DATABASE_URL=%s\n' "$1"
+              printf 'PGSSL=%s\n' "$2"
+              printf 'CORS_ORIGIN=%s\n' "$3"
+              printf 'PORT=%s\n' "$4"
+            } > .env
+            chmod 600 .env
+          elif [ ! -f .env ]; then
+            echo 'DATABASE_URL secret is not set and no existing .env was found.'
+            exit 1
           fi
-
-          ssh -i ~/.ssh/jojofish_deploy_key -p "$SSH_PORT" "$SSH_USER@$SSH_HOST"             "cd '$DEPLOY_PATH' && set -a && . ./.env && set +a && psql "\$DATABASE_URL" -f server/schema.sql"
+          set -a
+          . ./.env
+          set +a
+          psql "$DATABASE_URL" -f server/schema.sql
+          REMOTE
 
       - name: Verify uploaded files
         if: steps.deploy_config.outputs.ready == 'true'
@@ -116,8 +121,37 @@ PORT=%s
       - name: Restart API process
         if: steps.deploy_config.outputs.ready == 'true'
         run: |
-          PROCESS_Q=$(printf '%q' "$APP_PROCESS_NAME")
-          ssh -i ~/.ssh/jojofish_deploy_key -p "$SSH_PORT" "$SSH_USER@$SSH_HOST"             "set -e; cd '$DEPLOY_PATH'; set -a; [ -f .env ] && . ./.env; set +a; PORT_VALUE=${PORT:-8787}; if command -v pm2 >/dev/null 2>&1; then if pm2 describe $PROCESS_Q >/dev/null 2>&1; then pm2 reload $PROCESS_Q --update-env; else pm2 start server/index.mjs --name $PROCESS_Q --update-env; fi; pm2 save || true; elif command -v systemctl >/dev/null 2>&1 && systemctl --user is-active --quiet $PROCESS_Q; then systemctl --user restart $PROCESS_Q; elif command -v systemctl >/dev/null 2>&1 && systemctl is-active --quiet $PROCESS_Q; then sudo -n systemctl restart $PROCESS_Q; else if command -v fuser >/dev/null 2>&1; then fuser -k ${PORT_VALUE}/tcp || true; elif command -v lsof >/dev/null 2>&1; then kill $(lsof -ti tcp:${PORT_VALUE}) 2>/dev/null || true; fi; nohup node server/index.mjs > jojofish-api.log 2>&1 & sleep 3; curl -fsS http://127.0.0.1:${PORT_VALUE}/api/broadcasts >/dev/null; fi"
+          ssh -i ~/.ssh/jojofish_deploy_key -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
+            "cd '$DEPLOY_PATH' && bash -s --" "$APP_PROCESS_NAME" <<'REMOTE'
+          set -e
+          process_name="$1"
+          set -a
+          [ -f .env ] && . ./.env
+          set +a
+          port_value="\${PORT:-8787}"
+
+          if command -v pm2 >/dev/null 2>&1; then
+            if pm2 describe "$process_name" >/dev/null 2>&1; then
+              pm2 reload "$process_name" --update-env
+            else
+              pm2 start server/index.mjs --name "$process_name" --update-env
+            fi
+            pm2 save || true
+          elif command -v systemctl >/dev/null 2>&1 && systemctl --user is-active --quiet "$process_name"; then
+            systemctl --user restart "$process_name"
+          elif command -v systemctl >/dev/null 2>&1 && systemctl is-active --quiet "$process_name"; then
+            sudo -n systemctl restart "$process_name"
+          else
+            if command -v fuser >/dev/null 2>&1; then
+              fuser -k "\${port_value}/tcp" || true
+            elif command -v lsof >/dev/null 2>&1; then
+              kill \$(lsof -ti tcp:"$port_value") 2>/dev/null || true
+            fi
+            nohup node server/index.mjs > jojofish-api.log 2>&1 &
+            sleep 3
+            curl -fsS "http://127.0.0.1:$port_value/api/broadcasts" >/dev/null
+          fi
+          REMOTE
 
       - name: Verify deployed API
         if: steps.deploy_config.outputs.ready == 'true'
