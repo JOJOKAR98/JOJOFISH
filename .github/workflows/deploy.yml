@@ -91,18 +91,21 @@ jobs:
       - name: Configure PostgreSQL API
         if: steps.deploy_config.outputs.ready == 'true'
         run: |
-          if [ -z "$DATABASE_URL" ]; then
-            echo "::notice::DATABASE_URL secret is not set. Configure it so the API can store leaderboards and broadcasts in PostgreSQL."
-            exit 0
+          if [ -n "$DATABASE_URL" ]; then
+            DB_URL_Q=$(printf '%q' "$DATABASE_URL")
+            PGSSL_Q=$(printf '%q' "$PGSSL")
+            CORS_Q=$(printf '%q' "$CORS_ORIGIN")
+            PORT_Q=$(printf '%q' "$PORT")
+            ssh -i ~/.ssh/jojofish_deploy_key -p "$SSH_PORT" "$SSH_USER@$SSH_HOST"               "cd '$DEPLOY_PATH' && printf 'DATABASE_URL=%s
+PGSSL=%s
+CORS_ORIGIN=%s
+PORT=%s
+' $DB_URL_Q $PGSSL_Q $CORS_Q $PORT_Q > .env && chmod 600 .env"
+          else
+            ssh -i ~/.ssh/jojofish_deploy_key -p "$SSH_PORT" "$SSH_USER@$SSH_HOST"               "cd '$DEPLOY_PATH' && test -f .env || (echo 'DATABASE_URL secret is not set and no existing .env was found.'; exit 1)"
           fi
 
-          DB_URL_Q=$(printf '%q' "$DATABASE_URL")
-          PGSSL_Q=$(printf '%q' "$PGSSL")
-          CORS_Q=$(printf '%q' "$CORS_ORIGIN")
-          PORT_Q=$(printf '%q' "$PORT")
-
-          ssh -i ~/.ssh/jojofish_deploy_key -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
-            "cd '$DEPLOY_PATH' && printf 'DATABASE_URL=%s\nPGSSL=%s\nCORS_ORIGIN=%s\nPORT=%s\n' $DB_URL_Q $PGSSL_Q $CORS_Q $PORT_Q > .env && chmod 600 .env && DATABASE_URL=$DB_URL_Q psql \"\$DATABASE_URL\" -f server/schema.sql"
+          ssh -i ~/.ssh/jojofish_deploy_key -p "$SSH_PORT" "$SSH_USER@$SSH_HOST"             "cd '$DEPLOY_PATH' && set -a && . ./.env && set +a && psql "\$DATABASE_URL" -f server/schema.sql"
 
       - name: Verify uploaded files
         if: steps.deploy_config.outputs.ready == 'true'
@@ -114,8 +117,7 @@ jobs:
         if: steps.deploy_config.outputs.ready == 'true'
         run: |
           PROCESS_Q=$(printf '%q' "$APP_PROCESS_NAME")
-          ssh -i ~/.ssh/jojofish_deploy_key -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
-            "set -e; cd '$DEPLOY_PATH'; if command -v pm2 >/dev/null 2>&1; then if pm2 describe $PROCESS_Q >/dev/null 2>&1; then pm2 reload $PROCESS_Q --update-env; else pm2 start server/index.mjs --name $PROCESS_Q --update-env; fi; pm2 save || true; elif command -v systemctl >/dev/null 2>&1 && systemctl --user is-active --quiet $PROCESS_Q; then systemctl --user restart $PROCESS_Q; elif command -v systemctl >/dev/null 2>&1 && systemctl is-active --quiet $PROCESS_Q; then sudo -n systemctl restart $PROCESS_Q; else echo 'No pm2 or systemd process named' $PROCESS_Q 'was found.'; exit 1; fi"
+          ssh -i ~/.ssh/jojofish_deploy_key -p "$SSH_PORT" "$SSH_USER@$SSH_HOST"             "set -e; cd '$DEPLOY_PATH'; set -a; [ -f .env ] && . ./.env; set +a; PORT_VALUE=${PORT:-8787}; if command -v pm2 >/dev/null 2>&1; then if pm2 describe $PROCESS_Q >/dev/null 2>&1; then pm2 reload $PROCESS_Q --update-env; else pm2 start server/index.mjs --name $PROCESS_Q --update-env; fi; pm2 save || true; elif command -v systemctl >/dev/null 2>&1 && systemctl --user is-active --quiet $PROCESS_Q; then systemctl --user restart $PROCESS_Q; elif command -v systemctl >/dev/null 2>&1 && systemctl is-active --quiet $PROCESS_Q; then sudo -n systemctl restart $PROCESS_Q; else if command -v fuser >/dev/null 2>&1; then fuser -k ${PORT_VALUE}/tcp || true; elif command -v lsof >/dev/null 2>&1; then kill $(lsof -ti tcp:${PORT_VALUE}) 2>/dev/null || true; fi; nohup node server/index.mjs > jojofish-api.log 2>&1 & sleep 3; curl -fsS http://127.0.0.1:${PORT_VALUE}/api/broadcasts >/dev/null; fi"
 
       - name: Verify deployed API
         if: steps.deploy_config.outputs.ready == 'true'
