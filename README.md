@@ -1,8 +1,12 @@
 # JOJOFISH.COM MVP
 
+## Version
+
+Current release: v1.0.0. Future releases must bump `package.json` and `package-lock.json` before pushing.
+
 ## PostgreSQL leaderboard
 
-The regional leaderboard uses a Node API plus PostgreSQL. The browser never connects to PostgreSQL directly.
+The regional leaderboard, player leaderboard modes, and server-wide broadcasts use a Node API plus PostgreSQL. The browser never connects to PostgreSQL directly.
 
 ```bash
 psql "$DATABASE_URL" -f server/schema.sql
@@ -16,6 +20,21 @@ VITE_LEADERBOARD_API_URL=/api
 ```
 
 If the API is on another domain, use `VITE_LEADERBOARD_API_URL=https://your-domain.com/api`.
+
+Production server setup:
+
+```bash
+cd /var/www/jojofish.wakaka007.cn/current
+export DATABASE_URL="postgres://user:password@127.0.0.1:5432/jojofish"
+export PGSSL=false
+psql "$DATABASE_URL" -f server/schema.sql
+npm ci --omit=dev
+npm run server
+```
+
+The API health check returns PostgreSQL status at `/api/health`. The Node server can also serve the built frontend from `dist/`, so one process can host both the app and the PostgreSQL API when Nginx proxies to it.
+
+For GitHub Actions deployment, set the repository secret `DATABASE_URL`. Optional secrets are `PGSSL`, `CORS_ORIGIN`, and `PORT`. The workflow writes the server `.env` file and runs `server/schema.sql` during deployment.
 
 React + TypeScript + Tailwind CSS 单页小游戏原型。
 

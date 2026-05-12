@@ -20,8 +20,11 @@ jobs:
       SSH_HOST: ${{ secrets.SG_HOST }}
       SSH_USER: ${{ secrets.SG_USER }}
       SSH_PORT: ${{ secrets.SG_PORT || '22' }}
-      VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-      VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+      VITE_LEADERBOARD_API_URL: /api
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      PGSSL: ${{ secrets.PGSSL || 'false' }}
+      CORS_ORIGIN: ${{ secrets.CORS_ORIGIN || 'true' }}
+      PORT: ${{ secrets.PORT || '8787' }}
    
     steps:
       - name: Check out repository
@@ -70,9 +73,37 @@ jobs:
           rsync -az --delete \
             -e "ssh -i ~/.ssh/jojofish_deploy_key -p $SSH_PORT" \
             dist/ "$SSH_USER@$SSH_HOST:$DEPLOY_PATH/"
+          rsync -az --delete \
+            -e "ssh -i ~/.ssh/jojofish_deploy_key -p $SSH_PORT" \
+            dist/ "$SSH_USER@$SSH_HOST:$DEPLOY_PATH/dist/"
+          rsync -az \
+            -e "ssh -i ~/.ssh/jojofish_deploy_key -p $SSH_PORT" \
+            server package.json package-lock.json .env.example "$SSH_USER@$SSH_HOST:$DEPLOY_PATH/"
+
+      - name: Install API dependencies
+        if: steps.deploy_config.outputs.ready == 'true'
+        run: |
+          ssh -i ~/.ssh/jojofish_deploy_key -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
+            "cd '$DEPLOY_PATH' && npm ci --omit=dev"
+
+      - name: Configure PostgreSQL API
+        if: steps.deploy_config.outputs.ready == 'true'
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::notice::DATABASE_URL secret is not set. Configure it so the API can store leaderboards and broadcasts in PostgreSQL."
+            exit 0
+          fi
+
+          DB_URL_Q=$(printf '%q' "$DATABASE_URL")
+          PGSSL_Q=$(printf '%q' "$PGSSL")
+          CORS_Q=$(printf '%q' "$CORS_ORIGIN")
+          PORT_Q=$(printf '%q' "$PORT")
+
+          ssh -i ~/.ssh/jojofish_deploy_key -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
+            "cd '$DEPLOY_PATH' && printf 'DATABASE_URL=%s\nPGSSL=%s\nCORS_ORIGIN=%s\nPORT=%s\n' $DB_URL_Q $PGSSL_Q $CORS_Q $PORT_Q > .env && chmod 600 .env && DATABASE_URL=$DB_URL_Q psql \"\$DATABASE_URL\" -f server/schema.sql"
 
       - name: Verify uploaded files
         if: steps.deploy_config.outputs.ready == 'true'
         run: |
           ssh -i ~/.ssh/jojofish_deploy_key -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
-            "test -f '$DEPLOY_PATH/index.html' && find '$DEPLOY_PATH' -type d -exec chmod 755 {} + && find '$DEPLOY_PATH' -type f -exec chmod 644 {} +"
+            "test -f '$DEPLOY_PATH/index.html' && test -f '$DEPLOY_PATH/server/index.mjs' && find '$DEPLOY_PATH' -type d -exec chmod 755 {} + && find '$DEPLOY_PATH' -type f -exec chmod 644 {} +"

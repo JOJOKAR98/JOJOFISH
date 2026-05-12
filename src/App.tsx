@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { BatteryCharging, Coins, Compass, ShoppingBag, Trophy } from 'lucide-react';
-import { anomalies, baits, failureMessages, fishPool, hiddenKings, provinces, rods, seaZones } from './data/gameData';
+import { flushSync } from 'react-dom';
+import { BatteryCharging, Coins, Compass, Trophy, UserRound, Users } from 'lucide-react';
+import { anomalies, baits, characters, failureMessages, fishPool, hiddenKings, provinces, rods, seaZones } from './data/gameData';
 import {
   clamp,
   createDefaultPlayer,
   createProvinceScores,
   getEquippedBait,
+  getEquippedCharacter,
   getEquippedRod,
   getLuck,
   getProvinceRank,
@@ -15,32 +17,29 @@ import {
   todayKey,
 } from './lib/game';
 import {
+  fetchBroadcasts,
   fetchDistrictScores,
+  fetchOnlineStatus,
   fetchPlayerRankRows,
   isOnlineLeaderboardEnabled,
   recordCatchOnline,
+  type BroadcastItem,
   type DistrictScore,
   type PlayerRankRow,
 } from './lib/leaderboard';
-import type { Anomaly, Fish, Phase, PlayerState, ResultState } from './types';
+import type { Anomaly, Bait, Fish, FishingCharacter, Phase, PlayerState, ResultState, Rod, SeaZone } from './types';
 
 const SAVE_KEY = 'deep-sea-province-fishing-save-v2';
 const CODEX_KEY = 'deep-sea-fish-codex-v1';
 
-type Sheet = 'shopRod' | 'shopBait' | 'rankDistrict' | 'rankPlayer' | 'zone' | 'codex' | null;
+type Sheet = 'shopRod' | 'shopBait' | 'character' | 'rankDistrict' | 'rankPlayer' | 'zone' | 'codex' | null;
+type PlayerRankMode = 'dailyWeight' | 'dailyCoins' | 'totalCasts' | 'totalCoins';
 
 type FishRecord = {
   id: string;
   count: number;
   maxWeight: number;
   firstDistrict: string;
-};
-
-type BroadcastItem = {
-  id: string;
-  district: string;
-  fish: string;
-  rarity: Fish['rarity'];
 };
 
 type ZoneUnlock = {
@@ -101,6 +100,7 @@ const recoverStamina = (player: PlayerState): PlayerState => {
     ...player,
     dailyCasts: resetStats ? 0 : player.dailyCasts,
     dailyWeight: resetStats ? 0 : player.dailyWeight,
+    dailyCoins: resetStats ? 0 : player.dailyCoins,
     statsDate: today,
     stamina: Math.min(MAX_STAMINA, player.stamina + elapsedTicks * STAMINA_RESTORE_AMOUNT),
     lastStaminaAt: elapsedTicks > 0 ? now : player.lastStaminaAt || now,
@@ -205,6 +205,67 @@ const requiredHitsByRarity: Record<Fish['rarity'], number> = {
 
 const getRequiredHits = (fish: Fish | null) => (fish ? requiredHitsByRarity[fish.rarity] : 3);
 
+const baseProgressGainByRarity: Record<Fish['rarity'], number> = {
+  common: 38,
+  rare: 30,
+  legendary: 24,
+  epic: 20,
+  mutant: 17,
+  king: 15,
+};
+
+const getGearControl = (rod: Rod, bait: Bait, character: FishingCharacter) => {
+  return rod.difficulty * 0.45 + rod.tolerance * 0.3 + bait.rareBoost * 0.35 + character.focus * 0.85;
+};
+
+const getWindowDistance = (value: number, hitWindow: { min: number; max: number }) => {
+  if (value < hitWindow.min) return hitWindow.min - value;
+  if (value > hitWindow.max) return value - hitWindow.max;
+  return 0;
+};
+
+const getWindowAccuracy = (value: number, hitWindow: { min: number; max: number }) => {
+  const center = (hitWindow.min + hitWindow.max) / 2;
+  const halfWidth = Math.max(1, (hitWindow.max - hitWindow.min) / 2);
+  return clamp(1 - Math.abs(value - center) / halfWidth, 0, 1);
+};
+
+const getProgressGain = (
+  fish: Fish,
+  accuracy: number,
+  rod: Rod,
+  bait: Bait,
+  character: FishingCharacter,
+  zone: SeaZone,
+) => {
+  const gearControl = getGearControl(rod, bait, character);
+  const difficultyPenalty = fish.difficulty * 0.08 + zone.danger * 0.12;
+  const accuracyScale = 0.78 + accuracy * 0.48;
+  return clamp((baseProgressGainByRarity[fish.rarity] + gearControl * 0.42 - difficultyPenalty) * accuracyScale, 8, 46);
+};
+
+const getTimeoutGraceProgress = (fish: Fish, rod: Rod, bait: Bait, character: FishingCharacter) => {
+  const gearControl = getGearControl(rod, bait, character);
+  const base = fish.rarity === 'common' ? 88 : fish.rarity === 'rare' ? 91 : 94;
+  return clamp(base - gearControl * 0.18, 84, 94);
+};
+
+const getTimingSpeed = (fish: Fish, rod: Rod, character: FishingCharacter) => {
+  const base =
+    fish.rarity === 'common'
+      ? 130
+      : fish.rarity === 'rare'
+        ? 152
+        : fish.rarity === 'legendary'
+          ? 176
+          : fish.rarity === 'epic'
+            ? 198
+            : fish.rarity === 'mutant'
+              ? 220
+              : 238;
+  return base * clamp(1 - character.focus * 0.018 - rod.difficulty * 0.006, 0.86, 1);
+};
+
 function App() {
   const [player, setPlayer] = useState<PlayerState>(() => loadPlayer());
   const [phase, setPhase] = useState<Phase>('idle');
@@ -215,10 +276,9 @@ function App() {
   const [waitLeft, setWaitLeft] = useState(0);
   const [timeLeft, setTimeLeft] = useState(6);
   const [roundDuration, setRoundDuration] = useState(6);
-  const [tension, setTension] = useState(45);
   const [progress, setProgress] = useState(0);
   const [timingValue, setTimingValue] = useState(0);
-  const [timingDirection, setTimingDirection] = useState(1);
+  const [timingTarget, setTimingTarget] = useState({ min: 48, max: 52 });
   const [hitCount, setHitCount] = useState(0);
   const [missCount, setMissCount] = useState(0);
   const [result, setResult] = useState<ResultState | null>(null);
@@ -233,12 +293,16 @@ function App() {
   const [remoteProvinceScores, setRemoteProvinceScores] = useState<DistrictScore[]>([]);
   const [remotePlayerRows, setRemotePlayerRows] = useState<PlayerRankRow[]>([]);
   const [leaderboardOnline, setLeaderboardOnline] = useState(isOnlineLeaderboardEnabled());
-  const intendedSuccessRef = useRef(true);
   const fightResolvedRef = useRef(false);
+  const timingValueRef = useRef(0);
+  const timingDirectionRef = useRef(1);
+  const lastTimingFrameRef = useRef<number | null>(null);
+  const timingLockedRef = useRef(false);
 
   const selectedZone = useMemo(() => seaZones.find((zone) => zone.id === selectedZoneId) ?? seaZones[0], [selectedZoneId]);
   const equippedRod = useMemo(() => getEquippedRod(player), [player]);
   const equippedBait = useMemo(() => getEquippedBait(player), [player]);
+  const equippedCharacter = useMemo(() => getEquippedCharacter(player), [player]);
   const luck = useMemo(() => getLuck(player), [player]);
   const zoneUnlocks = useMemo(() => getZoneUnlocks(player, codex), [player, codex]);
   const localProvinceScores = useMemo(
@@ -251,7 +315,7 @@ function App() {
     anomaly.id !== 'none'
       ? seaClassByTone[anomaly.tone] ?? 'sea-scene'
       : seaClassByZone[selectedZone.id] ?? 'sea-zone-normal';
-  const tensionDanger = tension > 88 + equippedRod.tolerance || tension < 13;
+  const castCost = Math.max(1, selectedZone.staminaCost - equippedCharacter.staminaSaver);
   const canCast = phase === 'idle' && !!player.playerId;
   const visibleFish = phase === 'reeling' || !!result;
   const playerRankRows = useMemo(
@@ -263,12 +327,29 @@ function App() {
           dailyCasts: player.dailyCasts,
           dailyWeight: Number(player.dailyWeight.toFixed(1)),
           dailyScore: player.provinceContribution,
+          dailyCoins: player.dailyCoins,
           totalCasts: player.totalCasts,
           totalWeight: Number(player.totalWeight.toFixed(1)),
+          totalCoins: player.totalCoins,
         },
       ].sort((a, b) => b.dailyWeight - a.dailyWeight),
-    [player.playerId, player.dailyCasts, player.dailyWeight, player.totalCasts, player.totalWeight],
+    [player.playerId, player.dailyCasts, player.dailyWeight, player.provinceContribution, player.dailyCoins, player.totalCasts, player.totalWeight, player.totalCoins],
   );
+
+  const setTimingLine = (value: number, direction = timingDirectionRef.current) => {
+    const next = clamp(value, 0, 100);
+    timingValueRef.current = next;
+    timingDirectionRef.current = direction >= 0 ? 1 : -1;
+    lastTimingFrameRef.current = performance.now();
+    setTimingValue(next);
+  };
+
+  const resetTimingChallenge = (fish: Fish) => {
+    setTimingTarget(createHitWindow(fish));
+    setTimingLine(randomInt(0, 100) > 50 ? 8 : 92, randomInt(0, 1) === 0 ? 1 : -1);
+    timingLockedRef.current = false;
+  };
+
 
   useEffect(() => {
     localStorage.setItem(SAVE_KEY, JSON.stringify(player));
@@ -290,13 +371,16 @@ function App() {
       }
 
       try {
-        const [scores, rows] = await Promise.all([
+        const [, scores, rows, nextBroadcasts] = await Promise.all([
+          fetchOnlineStatus(),
           fetchDistrictScores(),
           fetchPlayerRankRows(player.playerId),
+          fetchBroadcasts(),
         ]);
         if (cancelled) return;
         setRemoteProvinceScores(scores);
         setRemotePlayerRows(rows);
+        setBroadcasts(nextBroadcasts);
         setLeaderboardOnline(true);
       } catch {
         if (cancelled) return;
@@ -335,21 +419,21 @@ function App() {
     if (phase !== 'waiting' || waitLeft > 0 || !hookedFish) return;
     const duration =
       hookedFish.rarity === 'common'
-        ? randomInt(50, 58) / 10
+        ? randomInt(62, 70) / 10
         : hookedFish.rarity === 'rare'
-          ? randomInt(54, 62) / 10
+          ? randomInt(66, 76) / 10
           : hookedFish.rarity === 'legendary'
-            ? randomInt(56, 64) / 10
-            : randomInt(58, 66) / 10;
+            ? randomInt(70, 82) / 10
+            : randomInt(74, 88) / 10;
     setPhase('reeling');
     setRoundDuration(duration);
     setTimeLeft(duration);
-    setTension(hookedFish.rarity === 'king' ? 58 : 43);
     setProgress(0);
     setHitCount(0);
     setMissCount(0);
-    setTimingValue(randomInt(0, 30));
-    setTimingDirection(1);
+    timingLockedRef.current = false;
+    setTimingLine(randomInt(0, 30), 1);
+    setTimingTarget(createHitWindow(hookedFish));
     setToast('来了！');
     setPulse(true);
   }, [phase, waitLeft, hookedFish]);
@@ -358,41 +442,48 @@ function App() {
     if (phase !== 'reeling' || !hookedFish) return undefined;
     const timer = window.setInterval(() => {
       setTimeLeft((value) => {
-        const next = Math.max(0, value - 0.1);
+        const next = Math.max(0, value - 0.05);
         if (next <= 0) finishFight(false, 'timeout');
         return next;
       });
 
-      setTension((current) => {
-        const drift = hookedFish.rarity === 'common' ? -0.12 : hookedFish.rarity === 'rare' ? 0.12 : hookedFish.rarity === 'legendary' ? 0.22 : 0.34;
-        return clamp(current + drift + missCount * 0.24, 18, 98 + equippedRod.tolerance);
-      });
-
-      setTimingValue((value) => {
-        const speed =
-          hookedFish.rarity === 'common'
-            ? 9.2
-            : hookedFish.rarity === 'rare'
-              ? 11
-              : hookedFish.rarity === 'legendary'
-                ? 12.8
-                : hookedFish.rarity === 'epic'
-                  ? 14
-                  : 15.5;
-        let next = value + timingDirection * speed;
-        if (next >= 100) {
-          next = 100;
-          setTimingDirection(-1);
-        }
-        if (next <= 0) {
-          next = 0;
-          setTimingDirection(1);
-        }
-        return next;
-      });
-    }, 100);
+    }, 50);
     return () => window.clearInterval(timer);
-  }, [phase, hookedFish, timingDirection, equippedRod, missCount]);
+  }, [phase, hookedFish]);
+
+  useEffect(() => {
+    if (phase !== 'reeling' || !hookedFish) return undefined;
+    let frame = 0;
+    lastTimingFrameRef.current = performance.now();
+
+    const tick = (now: number) => {
+      if (timingLockedRef.current) {
+        lastTimingFrameRef.current = now;
+        frame = window.requestAnimationFrame(tick);
+        return;
+      }
+
+      const previous = lastTimingFrameRef.current ?? now;
+      const elapsedSeconds = clamp((now - previous) / 1000, 0, 0.05);
+      lastTimingFrameRef.current = now;
+
+      let next = timingValueRef.current + timingDirectionRef.current * getTimingSpeed(hookedFish, equippedRod, equippedCharacter) * elapsedSeconds;
+      if (next >= 100) {
+        next = 100;
+        timingDirectionRef.current = -1;
+      } else if (next <= 0) {
+        next = 0;
+        timingDirectionRef.current = 1;
+      }
+
+      timingValueRef.current = next;
+      setTimingValue(next);
+      frame = window.requestAnimationFrame(tick);
+    };
+
+    frame = window.requestAnimationFrame(tick);
+    return () => window.cancelAnimationFrame(frame);
+  }, [phase, hookedFish, equippedRod, equippedCharacter]);
 
   useEffect(() => {
     if (!pulse) return undefined;
@@ -400,39 +491,32 @@ function App() {
     return () => window.clearTimeout(timer);
   }, [pulse]);
 
-  const rollSuccess = (fish: Fish, nextPlayer: PlayerState) => {
-    if (nextPlayer.totalCasts < 5 && nextPlayer.newbieWins < 4 && fish.rarity !== 'king') return true;
-    const base = fish.rarity === 'common' ? 0.85 : fish.rarity === 'rare' ? 0.55 : fish.rarity === 'legendary' ? 0.38 : fish.rarity === 'epic' ? 0.26 : 0.2;
-    const rodBonus = equippedRod.difficulty * 0.006 + equippedRod.luck * 0.004;
-    return Math.random() < clamp(base + rodBonus, 0.12, 0.92);
-  };
-
   const castRod = () => {
     if (!canCast) return;
     if (zoneUnlocks[selectedZone.id]?.unlocked === false) {
       setToast(zoneUnlocks[selectedZone.id]?.label ?? "\u8fd9\u7247\u6d77\u57df\u8fd8\u6ca1\u89e3\u9501");
       return;
     }
-    if (player.stamina < selectedZone.staminaCost) {
-      setEnergyPrompt(`${selectedZone.name}要 ${selectedZone.staminaCost} 点体力，补一口气马上继续。`);
+    if (player.stamina < castCost) {
+      setEnergyPrompt(`${selectedZone.name}要 ${castCost} 点体力，补一口气马上继续。`);
       return;
     }
     const nextAnomaly = maybeAnomaly(selectedZone);
-    const nextPlayer = { ...player, stamina: player.stamina - selectedZone.staminaCost, lastStaminaAt: Date.now() };
+    const nextPlayer = { ...player, stamina: player.stamina - castCost, lastStaminaAt: Date.now() };
     const fish = pickFish(nextPlayer, selectedZone, nextAnomaly);
-    intendedSuccessRef.current = rollSuccess(fish, nextPlayer);
     fightResolvedRef.current = false;
+    timingLockedRef.current = false;
     setPlayer(nextPlayer);
     setAnomaly(nextAnomaly);
     setHookedFish(fish);
     const duration =
       fish.rarity === 'common'
-        ? randomInt(54, 62) / 10
+        ? randomInt(66, 76) / 10
         : fish.rarity === 'rare'
-          ? randomInt(58, 66) / 10
+          ? randomInt(70, 82) / 10
           : fish.rarity === 'legendary'
-            ? randomInt(62, 70) / 10
-            : randomInt(66, 74) / 10;
+            ? randomInt(76, 88) / 10
+            : randomInt(82, 96) / 10;
     setWaitLeft(0);
     setPhase('reeling');
     setRoundDuration(duration);
@@ -440,9 +524,10 @@ function App() {
     setResult(null);
     setHitCount(0);
     setMissCount(0);
-    setTimingValue(randomInt(0, 30));
+    timingLockedRef.current = false;
+    setTimingLine(randomInt(0, 30), 1);
+    setTimingTarget(createHitWindow(fish));
     setProgress(0);
-    setTension(fish.rarity === 'king' ? 58 : 43);
     setToast(fish.rarity === 'king' ? '\u6d77\u5e95\u6709\u4ec0\u4e48\u4e1c\u897f\u9192\u4e86\u2026\u2026' : '\u6765\u4e86\uff01');
     setPulse(true);
   };
@@ -452,6 +537,9 @@ function App() {
     fightResolvedRef.current = true;
 
     let finalSuccess = success;
+    if (!success && reason === 'timeout' && progress >= getTimeoutGraceProgress(hookedFish, equippedRod, equippedBait, equippedCharacter)) {
+      finalSuccess = true;
+    }
     if (!success && player.totalCasts < 5 && player.newbieWins < 4 && hookedFish.rarity !== 'king' && progress > 45) {
       finalSuccess = true;
     }
@@ -483,8 +571,10 @@ function App() {
       provinceContribution: current.provinceContribution + contribution,
       dailyCasts: current.dailyCasts + 1,
       dailyWeight: current.dailyWeight + (finalSuccess ? weight : 0),
+      dailyCoins: current.dailyCoins + coins,
       totalCasts: current.totalCasts + 1,
       totalWeight: current.totalWeight + (finalSuccess ? weight : 0),
+      totalCoins: current.totalCoins + coins,
       newbieWins: current.totalCasts < 5 && finalSuccess ? current.newbieWins + 1 : current.newbieWins,
     }));
 
@@ -497,14 +587,17 @@ function App() {
         rarity: hookedFish.rarity,
         weight,
         score: contribution,
+        coins,
       })
         .then(() => Promise.all([
           fetchDistrictScores(),
           fetchPlayerRankRows(player.playerId),
+          fetchBroadcasts(),
         ]))
-        .then(([scores, rows]) => {
+        .then(([scores, rows, nextBroadcasts]) => {
           setRemoteProvinceScores(scores);
           setRemotePlayerRows(rows);
+          setBroadcasts(nextBroadcasts);
           setLeaderboardOnline(true);
         })
         .catch(() => {
@@ -542,52 +635,75 @@ function App() {
     setHookedFish(null);
     setResult(null);
     setProgress(0);
-    setTension(44);
     setTimeLeft(6);
     setHitCount(0);
     setMissCount(0);
-    setTimingValue(0);
+    timingLockedRef.current = false;
+    setTimingLine(0, 1);
+    setTimingTarget({ min: 48, max: 52 });
     setToast('再来一杆？');
   };
 
-  const getHitWindow = (fish: Fish | null) => {
-    if (!fish) return { min: 42, max: 58 };
-    const newbieWiden = player.totalCasts < 3 ? 3 : 0;
-    const rodWiden = Math.min(2, Math.floor(equippedRod.difficulty / 6));
-    const widen = newbieWiden + rodWiden;
-    if (fish.rarity === 'common') return { min: 40 - widen, max: 60 + widen };
-    if (fish.rarity === 'rare') return { min: 43 - widen, max: 57 + widen };
-    if (fish.rarity === 'legendary') return { min: 45 - widen, max: 55 + widen };
-    if (fish.rarity === 'epic') return { min: 47 - widen, max: 53 + widen };
-    return { min: 48 - widen, max: 52 + widen };
+  const getHitWindowWidth = (fish: Fish | null) => {
+    if (!fish) return 5;
+    const newbieWiden = player.totalCasts < 8 ? 2 : 0;
+    const rodWiden = Math.min(3.5, equippedRod.difficulty * 0.16 + equippedRod.tolerance * 0.1);
+    const characterWiden = equippedCharacter.focus * 0.55;
+    const widen = newbieWiden + rodWiden + characterWiden;
+    if (fish.rarity === 'common') return 15 + widen;
+    if (fish.rarity === 'rare') return 12.5 + widen;
+    if (fish.rarity === 'legendary') return 10.5 + widen;
+    if (fish.rarity === 'epic') return 9 + widen;
+    return 8 + widen;
+  };
+
+  const createHitWindow = (fish: Fish | null) => {
+    const width = getHitWindowWidth(fish);
+    const half = width / 2;
+    const center = randomInt(Math.ceil(half * 10), Math.floor((100 - half) * 10)) / 10;
+    return {
+      min: clamp(center - half, 0, 100),
+      max: clamp(center + half, 0, 100),
+    };
   };
 
   const tapTiming = () => {
-    if (phase !== 'reeling' || fightResolvedRef.current || !hookedFish) return;
-    const hitWindow = getHitWindow(hookedFish);
-    const isHit = timingValue >= hitWindow.min && timingValue <= hitWindow.max;
+    if (phase !== 'reeling' || fightResolvedRef.current || timingLockedRef.current || !hookedFish) return;
+    const currentTimingValue = timingValue;
+    const windowDistance = getWindowDistance(currentTimingValue, timingTarget);
+    const isHit = currentTimingValue >= timingTarget.min && currentTimingValue <= timingTarget.max;
+    const requiredHits = getRequiredHits(hookedFish);
 
     if (isHit) {
-      const nextHits = hitCount + 1;
-      const requiredHits = getRequiredHits(hookedFish);
-      setHitCount(nextHits);
-      setProgress((nextHits / requiredHits) * 100);
-      setTension((value) => clamp(value - 6, 18, 112));
-      setToast(nextHits >= requiredHits ? '\u62c9\u4e0a\u6765\uff01' : `\u547d\u4e2d\uff01${nextHits}/${requiredHits}`);
-      setPulse(true);
-      setTimingValue(randomInt(0, 100) > 50 ? 12 : 88);
-      setTimingDirection(randomInt(0, 1) === 0 ? 1 : -1);
-      if (nextHits >= requiredHits) finishFight(true);
+      timingLockedRef.current = true;
+      const accuracy = getWindowAccuracy(currentTimingValue, timingTarget);
+      const gain = getProgressGain(hookedFish, accuracy, equippedRod, equippedBait, equippedCharacter, selectedZone);
+      const nextProgress = clamp(progress + gain, 0, 100);
+      const nextHits = nextProgress >= 100 ? requiredHits : Math.min(requiredHits, hitCount + 1);
+      flushSync(() => {
+        setHitCount(nextHits);
+        setMissCount((value) => Math.max(0, value - 1));
+        setProgress(nextProgress);
+        setToast(nextProgress >= 100 ? '\u62c9\u4e0a\u6765\uff01' : `\u7cbe\u51c6\u6536\u7ebf\uff01+${Math.round(gain)}%`);
+        setPulse(true);
+      });
+      if (nextProgress < 100) {
+        window.setTimeout(() => {
+          if (!fightResolvedRef.current) resetTimingChallenge(hookedFish);
+        }, 80);
+      } else {
+        finishFight(true);
+      }
       return;
     }
 
     const nextMiss = missCount + 1;
     setMissCount(nextMiss);
-    setTension((value) => clamp(value + 22, 18, 118));
-    setProgress((value) => clamp(value - 18, 0, 100));
-    setToast(nextMiss >= 3 ? '鱼线一松！' : '差一点！');
+    setProgress((value) => clamp(value - Math.min(14, 7 + windowDistance * 0.28), 0, 100));
+    setToast(`\u672a\u547d\u4e2d ${windowDistance.toFixed(1)}%`);
     setPulse(true);
-    if (nextMiss >= 3) finishFight(false, 'escaped');
+    setTimingTarget(createHitWindow(hookedFish));
+    setTimingLine(randomInt(0, 100) > 50 ? 8 : 92, randomInt(0, 1) === 0 ? 1 : -1);
   };
 
   const buyRod = (rodId: string) => {
@@ -620,6 +736,27 @@ function App() {
       ownedBaitIds: [...current.ownedBaitIds, baitId],
       equippedBaitId: baitId,
     }));
+  };
+
+  const buyCharacter = (characterId: string) => {
+    const character = characters.find((item) => item.id === characterId);
+    if (!character) return;
+    if (player.ownedCharacterIds.includes(characterId)) {
+      setPlayer((current) => ({ ...current, equippedCharacterId: characterId }));
+      setToast(`${character.name} 已上岸`);
+      return;
+    }
+    if (player.coins < character.price) {
+      setToast('金币不够，先多钓几杆');
+      return;
+    }
+    setPlayer((current) => ({
+      ...current,
+      coins: current.coins - character.price,
+      ownedCharacterIds: [...current.ownedCharacterIds, characterId],
+      equippedCharacterId: characterId,
+    }));
+    setToast(`${character.name} 加入队伍`);
   };
 
   const claimStarter = () => {
@@ -672,10 +809,10 @@ function App() {
   };
 
   return (
-    <main className="min-h-screen overflow-hidden bg-slate-950 text-slate-100">
+    <main className="stardew-ui min-h-screen overflow-hidden bg-slate-950 text-slate-100">
       <div className="flex min-h-screen items-center justify-center p-0 sm:p-4">
         <div className={`phone-frame weird-phone relative flex h-[100dvh] w-full max-w-[390px] flex-col overflow-hidden sm:h-[844px] ${sceneClass}`}>
-          <FishingBackdrop phase={phase} rarity={hookedFish?.rarity} anomaly={anomaly.id !== 'none'} zoneId={selectedZone.id} pulse={pulse} />
+          <FishingBackdrop phase={phase} rarity={hookedFish?.rarity} anomaly={anomaly.id !== 'none'} zoneId={selectedZone.id} pulse={pulse} character={equippedCharacter} />
 
           {!player.playerId && (
             <div className="absolute inset-0 z-[70] flex items-center justify-center bg-slate-950/78 p-6 backdrop-blur">
@@ -737,16 +874,12 @@ function App() {
             </div>
           </header>
 
-          <section className="relative z-10 flex flex-1 flex-col px-4 pb-3 pt-2">
+          <section className="relative z-10 flex flex-1 flex-col px-4 pb-3 pt-1">
             <div className="flex flex-col items-center text-center">
-              <div>
-                <div className="text-xs font-black text-cyan-50/80">{selectedZone.name}</div>
-                <h1 className="text-2xl font-black leading-none tracking-normal text-white drop-shadow">JOJOFISH.COM</h1>
-              </div>
               <button
                 onClick={watchLuckAd}
                 disabled={player.dailyLuckDate === todayKey()}
-                className="mt-2 rounded-full border border-lime-200/40 bg-lime-200/90 px-2.5 py-1.5 text-[11px] font-black text-slate-950 shadow-glow disabled:bg-white/12 disabled:text-white/45"
+                className="luck-button rounded-full border border-lime-200/40 bg-lime-200/90 px-3 py-1.5 text-[11px] font-black text-slate-950 shadow-glow disabled:bg-white/12 disabled:text-white/45"
               >
                 {player.dailyLuckDate === todayKey() ? '已加成' : '幸运广告'}
               </button>
@@ -754,7 +887,7 @@ function App() {
 
             <BroadcastBar item={broadcasts[0]} />
 
-            <div className="relative mt-2 flex min-h-0 flex-1 items-center justify-center pb-2">
+            <div className="action-stage relative mt-2 flex min-h-0 flex-1 items-center justify-center pb-2">
               {visibleFish && (
                 <>
                   <div className={`fish-shadow absolute bottom-[15%] h-16 rounded-[50%] bg-slate-950/80 ${hookedFish?.rarity === 'king' ? 'w-72' : hookedFish?.rarity === 'mutant' ? 'w-56' : 'w-36'}`} />
@@ -762,22 +895,46 @@ function App() {
                 </>
               )}
               {phase === 'idle' && (
-                <div className="z-10 flex flex-col items-center gap-2">
-                  <button onClick={castRod} className="rounded-full bg-amber-300 px-10 py-5 text-2xl font-black text-slate-950 shadow-gold active:scale-95">
+                <div className="action-stack z-10 flex flex-col items-center gap-3">
+                  <button onClick={castRod} className="cast-button rounded-full bg-amber-300 px-10 py-5 text-2xl font-black text-slate-950 shadow-gold active:scale-95">
                     {"\u629b\u7aff"}
                   </button>
-                  <div className="grid w-44 grid-cols-2 gap-2">
-                    <button onClick={() => setSheet('shopRod')} className="rounded-full bg-black/55 px-3 py-2 text-xs font-black text-lime-100 ring-1 ring-lime-200/25 backdrop-blur">
+                  <div className="gear-shop-row grid w-60 grid-cols-2 gap-6">
+                    <button onClick={() => setSheet('shopRod')} className="gear-shop-button rounded-full bg-black/55 px-3 py-2 text-xs font-black text-lime-100 ring-1 ring-lime-200/25 backdrop-blur">
                       {"\u9c7c\u7aff"}
                     </button>
-                    <button onClick={() => setSheet('shopBait')} className="rounded-full bg-black/55 px-3 py-2 text-xs font-black text-cyan-100 ring-1 ring-cyan-200/25 backdrop-blur">
+                    <button onClick={() => setSheet('shopBait')} className="gear-shop-button rounded-full bg-black/55 px-3 py-2 text-xs font-black text-cyan-100 ring-1 ring-cyan-200/25 backdrop-blur">
                       {"\u9c7c\u9975"}
                     </button>
                   </div>
+                  <button onClick={() => setSheet('character')} className="character-entry-button rounded-full px-3 py-2 text-xs font-black">
+                    <UserRound size={15} />
+                    <span>角色 {equippedCharacter.name}</span>
+                  </button>
                 </div>
               )}
               {phase === 'reeling' && (
-                <TimingChallenge value={timingValue} hitWindow={getHitWindow(hookedFish)} hits={hitCount} requiredHits={getRequiredHits(hookedFish)} timeLeft={timeLeft} danger={timeLeft <= 2} />
+                <div className="action-stack z-10 flex w-full flex-col items-center gap-3">
+                  <TimingChallenge
+                    value={timingValue}
+                    hitWindow={timingTarget}
+                    hits={hitCount}
+                    requiredHits={getRequiredHits(hookedFish)}
+                    timeLeft={timeLeft}
+                    danger={timeLeft <= 2}
+                    onTap={tapTiming}
+                  />
+                  <button
+                    onPointerDown={(event) => {
+                      event.preventDefault();
+                      tapTiming();
+                    }}
+                    className="cast-button timing-action-button rounded-full bg-lime-200 px-10 py-5 text-2xl font-black text-slate-950 shadow-glow active:scale-[0.98]"
+                  >
+                    <span className="timing-action-main">{"\u70b9\u51fb\u6536\u7ebf"}</span>
+                    <span className="timing-action-sub">{`\u547d\u4e2d ${hitCount}/${getRequiredHits(hookedFish)} \u00b7 ${Math.round(progress)}%`}</span>
+                  </button>
+                </div>
               )}
             </div>
 
@@ -787,18 +944,10 @@ function App() {
             </div>
           </section>
 
-          <footer className="relative z-20 space-y-2 bg-slate-950/50 px-4 pb-4 pt-3 backdrop-blur">
-            {phase === 'reeling' && (
-              <button
-                onClick={tapTiming}
-                className="h-20 w-full rounded-[26px] bg-lime-200 text-2xl font-black text-slate-950 shadow-glow active:scale-[0.98]"
-              >
-                {`\u770b\u51c6\u70b9\u51fb ${hitCount}/${getRequiredHits(hookedFish)}`}
-              </button>
-            )}
+          <footer className="hud-footer relative z-20 space-y-2 bg-slate-950/50 px-4 pb-4 pt-3 backdrop-blur">
             <div className="mx-auto grid w-full max-w-[310px] grid-cols-4 gap-1.5">
-              <SmallNav icon={<ShoppingBag size={17} />} label={"\u5546\u5e97"} onClick={() => setSheet('shopRod')} />
-              <SmallNav icon={<Trophy size={17} />} label={"\u699c\u5355"} onClick={() => setSheet('rankDistrict')} />
+              <SmallNav icon={<Trophy size={17} />} label={"\u533a\u57df\u699c"} onClick={() => setSheet('rankDistrict')} />
+              <SmallNav icon={<Users size={17} />} label={"\u73a9\u5bb6\u699c"} onClick={() => setSheet('rankPlayer')} />
               <SmallNav icon={<Compass size={17} />} label={"\u6d77\u57df"} onClick={() => setSheet('zone')} />
               <SmallNav icon={<Coins size={17} />} label={"\u56fe\u9274"} onClick={() => setSheet('codex')} />
             </div>
@@ -818,11 +967,13 @@ function App() {
           )}
           {sheet && (
             <BottomSheet
-              title={sheet === 'shopRod' ? "\u9c7c\u7aff\u5546\u5e97" : sheet === 'shopBait' ? "\u9c7c\u9975\u5546\u5e97" : sheet === 'rankDistrict' ? "\u533a\u57df\u699c\u5355" : sheet === 'rankPlayer' ? "\u73a9\u5bb6\u699c\u5355" : sheet === 'zone' ? "\u9009\u62e9\u6d77\u57df" : "\u9c7c\u7c7b\u56fe\u9274"}
+              title={sheet === 'shopRod' ? "\u9c7c\u7aff\u5546\u5e97" : sheet === 'shopBait' ? "\u9c7c\u9975\u5546\u5e97" : sheet === 'character' ? "\u9009\u62e9\u89d2\u8272" : sheet === 'rankDistrict' ? "\u533a\u57df\u699c\u5355" : sheet === 'rankPlayer' ? "\u73a9\u5bb6\u699c\u5355" : sheet === 'zone' ? "\u9009\u62e9\u6d77\u57df" : "\u9c7c\u7c7b\u56fe\u9274"}
               onClose={() => setSheet(null)}
             >
-              {(sheet === 'shopRod' || sheet === 'shopBait') && <Shop mode={sheet === 'shopRod' ? 'rod' : 'bait'} player={player} equippedRodId={player.equippedRodId} equippedBaitId={player.equippedBaitId} onBuyRod={buyRod} onBuyBait={buyBait} onModeChange={(mode) => setSheet(mode === 'rod' ? 'shopRod' : 'shopBait')} />}
-              {(sheet === 'rankDistrict' || sheet === 'rankPlayer') && <Rank mode={sheet === 'rankDistrict' ? 'district' : 'player'} scores={provinceScores} province={player.province} contribution={player.provinceContribution} broadcasts={broadcasts} playerRows={remotePlayerRows.length > 0 ? remotePlayerRows : playerRankRows} playerId={player.playerId} leaderboardOnline={leaderboardOnline} onModeChange={(mode) => setSheet(mode === 'district' ? 'rankDistrict' : 'rankPlayer')} />}
+              {(sheet === 'shopRod' || sheet === 'shopBait') && <Shop mode={sheet === 'shopRod' ? 'rod' : 'bait'} player={player} equippedRodId={player.equippedRodId} equippedBaitId={player.equippedBaitId} onBuyRod={buyRod} onBuyBait={buyBait} />}
+              {sheet === 'character' && <CharacterPicker player={player} equippedCharacterId={player.equippedCharacterId} onPick={buyCharacter} />}
+              {sheet === 'rankDistrict' && <DistrictRank scores={provinceScores} province={player.province} contribution={player.provinceContribution} leaderboardOnline={leaderboardOnline} />}
+              {sheet === 'rankPlayer' && <PlayerRank broadcasts={broadcasts} playerRows={leaderboardOnline ? remotePlayerRows : playerRankRows} playerId={player.playerId} leaderboardOnline={leaderboardOnline} />}
               {sheet === 'zone' && (
                 <ZonePickerUnlocked selectedZoneId={selectedZoneId} unlocks={zoneUnlocks} onPick={(id) => { setSelectedZoneId(id); setSheet(null); }} disabled={!canCast} />
               )}
@@ -837,7 +988,7 @@ function App() {
 
 function TopStat({ icon, label, value }: { icon: React.ReactNode; label: string; value: string | number }) {
   return (
-    <div className="rounded-xl bg-white/14 px-1.5 py-1.5 text-center backdrop-blur">
+    <div className="top-stat rounded-xl bg-white/14 px-1.5 py-1.5 text-center backdrop-blur">
       <div className="mx-auto flex items-center justify-center gap-0.5 text-[10px] text-cyan-50/80">
         {icon}
         {label}
@@ -849,7 +1000,7 @@ function TopStat({ icon, label, value }: { icon: React.ReactNode; label: string;
 
 function BroadcastBar({ item }: { item?: BroadcastItem }) {
   return (
-    <div className="mx-auto mt-2 w-full max-w-[318px] rounded-2xl border border-amber-200/20 bg-black/52 px-3 py-2 shadow-glow backdrop-blur">
+    <div className="broadcast-board mx-auto mt-2 w-full max-w-[318px] rounded-2xl border border-amber-200/20 bg-black/52 px-3 py-2 shadow-glow backdrop-blur">
       <div className="mb-1 flex items-center justify-between text-[10px] font-black tracking-normal text-amber-100/90">
         <span>{"\u5168\u670d\u5e7f\u64ad"}</span>
         <span className="rounded-full bg-amber-200/12 px-2 py-0.5 text-[9px] text-amber-100">LEGEND+</span>
@@ -884,12 +1035,19 @@ function BroadcastLine({ item }: { item: BroadcastItem }) {
   );
 }
 
-function FishingBackdrop({ phase, rarity, anomaly, zoneId, pulse }: { phase: Phase; rarity?: Fish['rarity']; anomaly: boolean; zoneId: string; pulse: boolean }) {
+function FishingBackdrop({ phase, rarity, anomaly, zoneId, pulse, character }: { phase: Phase; rarity?: Fish['rarity']; anomaly: boolean; zoneId: string; pulse: boolean; character: FishingCharacter }) {
   const bigShadow = rarity === 'king' || rarity === 'mutant';
   const zoneClass = `backdrop-${zoneId}`;
 
   return (
     <div className={`pointer-events-none absolute inset-0 overflow-hidden ${zoneClass}`}>
+      <div className="pixel-sky-grid absolute inset-0" />
+      <div className="pixel-sun absolute right-10 top-16 h-20 w-20" />
+      <div className="pixel-hills pixel-hills-back absolute inset-x-[-24px] top-[32%] h-24" />
+      <div className="pixel-hills pixel-hills-front absolute inset-x-[-18px] top-[38%] h-24" />
+      <div className="pixel-field absolute inset-x-0 top-[42%] h-20" />
+      <div className="pixel-reeds pixel-reeds-left absolute left-3 top-[54%] h-24 w-16" />
+      <div className="pixel-reeds pixel-reeds-right absolute right-4 top-[56%] h-20 w-16" />
       <div className="abyss-moon absolute right-10 top-20 h-20 w-20 rounded-full" />
       <div className="distant-cloud cloud-a absolute left-8 top-28 h-8 w-24 rounded-full bg-lime-100/12 blur-sm" />
       <div className="distant-cloud cloud-b absolute right-2 top-36 h-7 w-20 rounded-full bg-cyan-100/10 blur-sm" />
@@ -907,8 +1065,36 @@ function FishingBackdrop({ phase, rarity, anomaly, zoneId, pulse }: { phase: Pha
       <div className="sea-sparks absolute inset-x-0 top-[50%] h-[24%]" />
       <div className={`underwater-shadow absolute left-1/2 top-[64%] h-20 -translate-x-1/2 rounded-[50%] bg-slate-950/35 blur-md ${bigShadow ? 'w-72 opacity-80' : 'w-44 opacity-45'} ${phase === 'reeling' ? 'fish-shadow' : ''}`} />
       <div className="boat-rim absolute inset-x-[-20px] bottom-[144px] h-24 rounded-t-[50%] bg-gradient-to-b from-stone-700 via-stone-950 to-slate-950 shadow-2xl" />
-      <div className="boat-highlight absolute inset-x-8 bottom-[207px] h-2 rounded-full bg-lime-100/20" />
       <FishingGear active={phase === 'reeling'} biting={phase !== 'idle'} pulse={pulse} />
+      <div className="boat-highlight absolute inset-x-8 bottom-[207px] h-2 rounded-full bg-lime-100/20" />
+      <PixelAngler character={character} casting={phase !== 'idle' || pulse} />
+    </div>
+  );
+}
+
+function PixelAngler({ character, casting }: { character: FishingCharacter; casting: boolean }) {
+  return (
+    <div
+      className={`pixel-angler absolute left-8 bottom-[194px] ${casting ? 'pixel-angler-casting' : ''}`}
+      style={{
+        '--skin': character.palette.skin,
+        '--hair': character.palette.hair,
+        '--hat': character.palette.hat,
+        '--shirt': character.palette.shirt,
+        '--pants': character.palette.pants,
+      } as React.CSSProperties}
+      aria-hidden="true"
+    >
+      <div className="angler-shadow" />
+      <div className="angler-leg angler-leg-a" />
+      <div className="angler-leg angler-leg-b" />
+      <div className="angler-body" />
+      <div className="angler-head" />
+      <div className="angler-hair" />
+      <div className="angler-hat" />
+      <div className="angler-arm angler-arm-back" />
+      <div className="angler-arm angler-arm-front" />
+      <div className="angler-hand" />
     </div>
   );
 }
@@ -917,7 +1103,7 @@ function FishingGear({ active, biting, pulse }: { active: boolean; biting: boole
   return (
     <svg className="fishing-gear absolute inset-0 h-full w-full" viewBox="0 0 390 844" preserveAspectRatio="none" aria-hidden="true">
       <defs>
-        <linearGradient id="rodGradient" x1="70" y1="720" x2="214" y2="286" gradientUnits="userSpaceOnUse">
+        <linearGradient id="rodGradient" x1="96" y1="604" x2="230" y2="318" gradientUnits="userSpaceOnUse">
           <stop offset="0" stopColor="#0f172a" />
           <stop offset="0.35" stopColor="#7c4a18" />
           <stop offset="0.76" stopColor="#a16207" />
@@ -929,23 +1115,23 @@ function FishingGear({ active, biting, pulse }: { active: boolean; biting: boole
       </defs>
 
       <g className={`${pulse ? 'gear-yank' : ''}`}>
-        <path className={active ? 'gear-rod gear-rod-active' : 'gear-rod'} d="M58 720 C92 600 142 424 214 286" stroke="url(#rodGradient)" strokeWidth="10" strokeLinecap="round" fill="none" filter="url(#gearGlow)" />
-        <path d="M46 738 C58 704 66 676 74 646" stroke="#020617" strokeWidth="28" strokeLinecap="round" fill="none" />
-        <path d="M38 740 C54 726 72 718 95 710" stroke="#020617" strokeWidth="18" strokeLinecap="round" fill="none" />
-        <circle cx="91" cy="650" r="25" fill="rgba(190,242,100,0.58)" stroke="#020617" strokeWidth="8" />
-        <circle cx="91" cy="650" r="10" fill="none" stroke="#020617" strokeWidth="5" />
-        <path d="M112 646 C130 642 138 650 145 660" stroke="#020617" strokeWidth="8" strokeLinecap="round" fill="none" />
-        <circle cx="106" cy="567" r="8" fill="none" stroke="#d9f99d" strokeWidth="3" />
-        <circle cx="135" cy="461" r="7" fill="none" stroke="#d9f99d" strokeWidth="3" />
-        <circle cx="174" cy="352" r="6" fill="none" stroke="#d9f99d" strokeWidth="3" />
-        <circle cx="214" cy="286" r="7" fill="#ecfccb" filter="url(#gearGlow)" />
+        <path className={active ? 'gear-rod gear-rod-active' : 'gear-rod'} d="M96 604 C126 522 169 414 230 318" stroke="url(#rodGradient)" strokeWidth="5.5" strokeLinecap="round" fill="none" filter="url(#gearGlow)" />
+        <path d="M78 650 C85 635 93 617 100 599" stroke="#020617" strokeWidth="10" strokeLinecap="round" fill="none" />
+        <path d="M70 655 C80 651 91 645 101 637" stroke="#020617" strokeWidth="8" strokeLinecap="round" fill="none" />
+        <circle cx="107" cy="609" r="10" fill="rgba(190,242,100,0.58)" stroke="#020617" strokeWidth="4" />
+        <circle cx="107" cy="609" r="4" fill="none" stroke="#020617" strokeWidth="3" />
+        <path d="M116 607 C126 606 131 611 134 617" stroke="#020617" strokeWidth="4" strokeLinecap="round" fill="none" />
+        <circle cx="110" cy="576" r="4.5" fill="none" stroke="#d9f99d" strokeWidth="2.5" />
+        <circle cx="143" cy="487" r="4" fill="none" stroke="#d9f99d" strokeWidth="2.5" />
+        <circle cx="184" cy="392" r="3.5" fill="none" stroke="#d9f99d" strokeWidth="2.5" />
+        <circle cx="230" cy="318" r="4" fill="#ecfccb" filter="url(#gearGlow)" />
 
         <g className={active ? 'gear-line gear-line-active' : 'gear-line'}>
-          <path d="M214 286 C223 366 219 430 212 506" stroke="rgba(255,255,255,0.88)" strokeWidth="2" strokeLinecap="round" fill="none" />
-          <path d="M214 286 C223 366 219 430 212 506" stroke="rgba(190,242,100,0.24)" strokeWidth="6" strokeLinecap="round" fill="none" />
+          <path d="M230 318 C235 388 229 456 216 516" stroke="rgba(255,255,255,0.88)" strokeWidth="2" strokeLinecap="round" fill="none" />
+          <path d="M230 318 C235 388 229 456 216 516" stroke="rgba(190,242,100,0.24)" strokeWidth="4" strokeLinecap="round" fill="none" />
           <g className={biting ? 'gear-bobber gear-bobber-bite' : 'gear-bobber'}>
-            <circle cx="212" cy="506" r="11" fill="#fb7185" stroke="#ecfccb" strokeWidth="3" filter="url(#gearGlow)" />
-            <path d="M202 506 H222" stroke="#ecfccb" strokeWidth="3" strokeLinecap="round" />
+            <circle cx="216" cy="516" r="10" fill="#fb7185" stroke="#ecfccb" strokeWidth="3" filter="url(#gearGlow)" />
+            <path d="M207 516 H225" stroke="#ecfccb" strokeWidth="3" strokeLinecap="round" />
           </g>
         </g>
       </g>
@@ -969,6 +1155,7 @@ function TimingChallenge({
   requiredHits,
   timeLeft,
   danger,
+  onTap,
 }: {
   value: number;
   hitWindow: { min: number; max: number };
@@ -976,28 +1163,49 @@ function TimingChallenge({
   requiredHits: number;
   timeLeft: number;
   danger?: boolean;
+  onTap: () => void;
 }) {
+  const remainingHits = Math.max(0, requiredHits - hits);
+
   return (
-    <div className={`strong-panel z-10 w-full max-w-[340px] -translate-y-24 rounded-[22px] bg-black/50 px-3 py-3 text-center shadow-glow backdrop-blur ${danger ? 'bg-rose-950/88' : ''}`}>
-      <div className="text-2xl font-black">{"\u6765\u4e86\uff01"}</div>
-      <div className="mt-1 text-xs font-bold text-slate-100/85">{"\u770b\u51c6\u7eff\u533a\u70b9\u51fb"}</div>
+    <div className={`timing-panel strong-panel z-10 w-full max-w-[360px] rounded-[22px] bg-black/65 px-3 py-3 text-center shadow-glow backdrop-blur ${danger ? 'bg-rose-950/88' : ''}`}>
+      <div className="text-2xl font-black">{"\u6536\u7ebf\u5224\u5b9a"}</div>
+      <div className="mt-1 text-xs font-bold text-amber-100">{"\u7ea2\u767d\u6307\u9488\u8fdb\u5165\u9ec4\u8272\u547d\u4e2d\u69fd\u65f6\u70b9\u51fb"}</div>
+      <div className="timing-hit-counter mt-2 grid grid-cols-2 gap-2">
+        <span>{`\u547d\u4e2d ${hits}/${requiredHits}`}</span>
+        <span>{remainingHits > 0 ? `\u8fd8\u5dee ${remainingHits} \u6b21` : "\u53ef\u4ee5\u6536\u6746"}</span>
+      </div>
       <div className="mt-3 flex justify-center gap-1.5">
         {Array.from({ length: requiredHits }).map((_, index) => (
           <span key={index} className={`h-3 w-7 rounded-full ${index < hits ? 'bg-amber-300 shadow-gold' : 'bg-white/16'}`} />
         ))}
       </div>
-      <div className="relative mt-3 h-10 rounded-md bg-slate-900/95 ring-1 ring-white/10">
+      <button
+        type="button"
+        onPointerDown={(event) => {
+          event.preventDefault();
+          onTap();
+        }}
+        className="timing-lane relative mt-3 h-16 w-full overflow-hidden rounded-[14px] text-left active:scale-[0.99]"
+      >
+        <span className="pointer-events-none absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-white/25" />
         <div
-          className="absolute top-1 h-8 rounded-[5px] bg-emerald-300/35 ring-1 ring-emerald-100/40"
+          className="timing-target absolute top-1/2 h-12 -translate-y-1/2 rounded-[10px]"
           style={{
             left: `${hitWindow.min}%`,
             width: `${hitWindow.max - hitWindow.min}%`,
           }}
-        />
-        <div className="absolute inset-y-1 left-1/2 w-px bg-white/15" />
-        <div className="timing-dot absolute top-0 h-10 w-4 rounded-[4px] border border-lime-50 bg-lime-200 shadow-glow" style={{ left: `calc(${value}% - 8px)` }} />
-      </div>
-      <div className="mt-2 text-base font-black text-lime-100">{timeLeft.toFixed(1)}s</div>
+        >
+          <span className="timing-target-label absolute inset-0 flex items-center justify-center text-[11px] font-black tracking-[0.2em]">HIT</span>
+        </div>
+        <div className="timing-needle absolute top-0 h-full" style={{ left: `${value}%`, transform: 'translateX(-50%)' }}>
+          <span className="absolute left-1/2 top-0 h-full w-1 -translate-x-1/2 bg-rose-500" />
+          <span className="absolute left-1/2 top-0 h-full w-px -translate-x-1/2 bg-white" />
+          <span className="timing-needle-cap timing-needle-cap-top" />
+          <span className="timing-needle-cap timing-needle-cap-bottom" />
+        </div>
+      </button>
+      <div className="mt-2 text-base font-black text-amber-100">{timeLeft.toFixed(1)}s</div>
     </div>
   );
 }
@@ -1025,7 +1233,7 @@ function Meter({ label, value, max, danger, zones, compact }: { label: string; v
 
 function SmallNav({ icon, label, onClick }: { icon: React.ReactNode; label: string; onClick: () => void }) {
   return (
-    <button onClick={onClick} className="flex h-9 items-center justify-center gap-1 rounded-xl bg-white/10 text-xs font-black text-white active:scale-95">
+    <button onClick={onClick} className="small-nav flex h-9 items-center justify-center gap-1 rounded-xl bg-white/10 text-xs font-black text-white active:scale-95">
       {icon}
       {label}
     </button>
@@ -1035,7 +1243,7 @@ function SmallNav({ icon, label, onClick }: { icon: React.ReactNode; label: stri
 function ResultCard({ result, onClose }: { result: ResultState; onClose: () => void }) {
   return (
     <div onClick={onClose} className="absolute inset-0 z-40 flex items-center justify-center bg-slate-950/38 px-4 backdrop-blur-[1px]">
-      <div className="strong-panel relative max-h-[calc(100%-170px)] w-full max-w-[326px] overflow-y-auto rounded-[24px] p-4 text-center shadow-glow backdrop-blur">
+      <div className="result-panel strong-panel relative max-h-[calc(100%-170px)] w-full max-w-[326px] overflow-y-auto rounded-[24px] p-4 text-center shadow-glow backdrop-blur">
         {result.success && result.fish ? (
           <>
             {result.isNew && <span className="absolute left-3 top-3 z-10 rounded-full bg-rose-500 px-2.5 py-1 text-[10px] font-black text-white shadow-gold">NEW</span>}
@@ -1104,7 +1312,7 @@ function PrizeFish({ fish }: { fish: Fish }) {
 function BottomSheet({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) {
   return (
     <div className="absolute inset-0 z-50 flex items-end bg-slate-950/55 backdrop-blur-sm">
-      <div className="max-h-[72%] w-full overflow-y-auto rounded-t-[30px] bg-slate-950 p-4 shadow-glow">
+      <div className="bottom-sheet-panel max-h-[72%] w-full overflow-y-auto rounded-t-[30px] bg-slate-950 p-4 shadow-glow">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-2xl font-black">{title}</h2>
           <button onClick={onClose} className="rounded-full bg-white/10 px-4 py-2 text-sm font-black">关闭</button>
@@ -1115,13 +1323,9 @@ function BottomSheet({ title, children, onClose }: { title: string; children: Re
   );
 }
 
-function Shop({ mode, player, equippedRodId, equippedBaitId, onBuyRod, onBuyBait, onModeChange }: { mode: 'rod' | 'bait'; player: PlayerState; equippedRodId: string; equippedBaitId: string; onBuyRod: (id: string) => void; onBuyBait: (id: string) => void; onModeChange: (mode: 'rod' | 'bait') => void }) {
+function Shop({ mode, player, equippedRodId, equippedBaitId, onBuyRod, onBuyBait }: { mode: 'rod' | 'bait'; player: PlayerState; equippedRodId: string; equippedBaitId: string; onBuyRod: (id: string) => void; onBuyBait: (id: string) => void }) {
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-2 gap-2 rounded-2xl bg-white/5 p-1">
-        <button onClick={() => onModeChange('rod')} className={`rounded-xl py-2 text-sm font-black ${mode === 'rod' ? 'bg-lime-200 text-slate-950' : 'text-slate-200'}`}>{"\u9c7c\u7aff"}</button>
-        <button onClick={() => onModeChange('bait')} className={`rounded-xl py-2 text-sm font-black ${mode === 'bait' ? 'bg-cyan-200 text-slate-950' : 'text-slate-200'}`}>{"\u9c7c\u9975"}</button>
-      </div>
       {mode === 'rod' ? (
         <div className="space-y-2">
           {rods.map((rod) => {
@@ -1159,44 +1363,132 @@ function Shop({ mode, player, equippedRodId, equippedBaitId, onBuyRod, onBuyBait
   );
 }
 
-function Rank({ mode, scores, province, contribution, broadcasts, playerRows, playerId, leaderboardOnline, onModeChange }: { mode: 'district' | 'player'; scores: DistrictScore[]; province: string; contribution: number; broadcasts: BroadcastItem[]; playerRows: PlayerRankRow[]; playerId: string; leaderboardOnline: boolean; onModeChange: (mode: 'district' | 'player') => void }) {
+function CharacterPicker({ player, equippedCharacterId, onPick }: { player: PlayerState; equippedCharacterId: string; onPick: (id: string) => void }) {
+  return (
+    <div className="character-grid grid grid-cols-2 gap-2">
+      {characters.map((character) => {
+        const owned = player.ownedCharacterIds.includes(character.id);
+        const equipped = equippedCharacterId === character.id;
+        return (
+          <button
+            key={character.id}
+            onClick={() => onPick(character.id)}
+            className={`character-card rounded-2xl border p-3 text-left ${equipped ? 'character-card-active border-amber-200 bg-amber-300/20' : owned ? 'bg-white/10' : 'bg-black/35'}`}
+          >
+            <div className="flex items-start gap-2">
+              <CharacterPortrait character={character} />
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-black">{character.name}</div>
+                <div className="mt-0.5 truncate text-[10px] font-bold opacity-75">{character.title}</div>
+                <div className="mt-1 text-[11px] font-black">
+                  {equipped ? '使用中' : owned ? '换上' : `${character.price}金币`}
+                </div>
+              </div>
+            </div>
+            <div className="mt-2 grid grid-cols-3 gap-1 text-center text-[10px] font-black">
+              <span>运 +{character.luck}</span>
+              <span>稳 +{character.focus}</span>
+              <span>省 {character.staminaSaver}</span>
+            </div>
+            <p className="mt-2 text-[11px] leading-4 opacity-75">{character.description}</p>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function CharacterPortrait({ character }: { character: FishingCharacter }) {
+  return (
+    <div
+      className="character-portrait relative shrink-0"
+      style={{
+        '--skin': character.palette.skin,
+        '--hair': character.palette.hair,
+        '--hat': character.palette.hat,
+        '--shirt': character.palette.shirt,
+        '--pants': character.palette.pants,
+      } as React.CSSProperties}
+    >
+      <span className="portrait-leg portrait-leg-a" />
+      <span className="portrait-leg portrait-leg-b" />
+      <span className="portrait-body" />
+      <span className="portrait-head" />
+      <span className="portrait-hair" />
+      <span className="portrait-hat" />
+    </div>
+  );
+}
+
+function DistrictRank({ scores, province, contribution, leaderboardOnline }: { scores: DistrictScore[]; province: string; contribution: number; leaderboardOnline: boolean }) {
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-2 gap-2 rounded-2xl bg-white/5 p-1">
-        <button onClick={() => onModeChange('district')} className={`rounded-xl py-2 text-sm font-black ${mode === 'district' ? 'bg-lime-200 text-slate-950' : 'text-slate-200'}`}>{"\u533a\u57df\u699c"}</button>
-        <button onClick={() => onModeChange('player')} className={`rounded-xl py-2 text-sm font-black ${mode === 'player' ? 'bg-cyan-200 text-slate-950' : 'text-slate-200'}`}>{"\u73a9\u5bb6\u699c"}</button>
-      </div>
       <div className={`rounded-2xl px-3 py-2 text-[11px] font-black ${leaderboardOnline ? 'bg-lime-200/15 text-lime-100' : 'bg-amber-200/12 text-amber-100'}`}>
         {leaderboardOnline ? "\u8054\u7f51\u699c\u5355\u5df2\u540c\u6b65" : "\u672a\u914d\u7f6e\u8054\u7f51\u699c\u5355\uff0c\u6682\u7528\u672c\u5730\u6570\u636e"}
       </div>
-      {mode === 'district' ? (
-        <div className="space-y-3">
-          <div className="space-y-2">
-            {scores.map((item, index) => (
-              <div key={item.province} className={`flex justify-between rounded-2xl px-3 py-2 text-sm font-bold ${item.province === province ? 'bg-amber-300/20 text-amber-100' : 'bg-white/10'}`}>
-                <span>{index + 1}. {item.province}</span>
-                <span>{item.score}</span>
-              </div>
-            ))}
+      <div className="space-y-2">
+        {scores.map((item, index) => (
+          <div key={item.province} className={`rank-row flex justify-between rounded-2xl px-3 py-2 text-sm font-bold ${item.province === province ? 'rank-row-active bg-amber-300/20 text-amber-100' : 'bg-white/10'}`}>
+            <span>{index + 1}. {item.province}</span>
+            <span>{item.score}</span>
           </div>
-          <div className="rounded-2xl bg-cyan-300/12 p-3 text-xs text-cyan-50">{"\u4f60\u4e3a"} {province} {"\u8d21\u732e"} {contribution} {"\u5206"}</div>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {playerRows.slice(0, 8).map((item, index) => (
-            <div key={item.id} className={`rounded-2xl px-3 py-2 text-xs font-bold ${item.id === playerId ? 'bg-lime-200/20 text-lime-100' : 'bg-white/10 text-slate-200'}`}>
-              <div className="flex justify-between text-sm font-black"><span>{item.rank ?? index + 1}. {item.id}</span><span>{"\u4eca\u65e5"} {item.dailyWeight.toFixed(1)}kg</span></div>
+        ))}
+      </div>
+      <div className="rank-note rounded-2xl bg-cyan-300/12 p-3 text-xs text-cyan-50">{"\u4f60\u4e3a"} {province} {"\u8d21\u732e"} {contribution} {"\u5206"}</div>
+    </div>
+  );
+}
+
+function PlayerRank({ broadcasts, playerRows, playerId, leaderboardOnline }: { broadcasts: BroadcastItem[]; playerRows: PlayerRankRow[]; playerId: string; leaderboardOnline: boolean }) {
+  const [mode, setMode] = useState<PlayerRankMode>('dailyWeight');
+  const configs: Array<{ mode: PlayerRankMode; label: string; unit: string; getValue: (row: PlayerRankRow) => number }> = [
+    { mode: 'dailyWeight', label: "\u6bcf\u65e5\u91cd\u91cf", unit: 'kg', getValue: (row) => row.dailyWeight },
+    { mode: 'dailyCoins', label: "\u6bcf\u65e5\u91d1\u5e01", unit: "\u91d1\u5e01", getValue: (row) => row.dailyCoins ?? row.dailyScore ?? 0 },
+    { mode: 'totalCasts', label: "\u603b\u9493\u9c7c\u6570", unit: "\u6761", getValue: (row) => row.totalCasts },
+    { mode: 'totalCoins', label: "\u603b\u91d1\u5e01", unit: "\u91d1\u5e01", getValue: (row) => row.totalCoins ?? row.dailyScore ?? 0 },
+  ];
+  const active = configs.find((config) => config.mode === mode) ?? configs[0];
+  const sortedRows = [...playerRows]
+    .sort((a, b) => active.getValue(b) - active.getValue(a))
+    .slice(0, 8);
+
+  return (
+    <div className="space-y-3">
+      <div className={`rounded-2xl px-3 py-2 text-[11px] font-black ${leaderboardOnline ? 'bg-lime-200/15 text-lime-100' : 'bg-amber-200/12 text-amber-100'}`}>
+        {leaderboardOnline ? "\u8054\u7f51\u699c\u5355\u5df2\u540c\u6b65" : "\u672a\u914d\u7f6e\u8054\u7f51\u699c\u5355\uff0c\u6682\u7528\u672c\u5730\u6570\u636e"}
+      </div>
+      <div className="rank-tabs grid grid-cols-2 gap-2 rounded-2xl bg-white/5 p-1">
+        {configs.map((config) => (
+          <button
+            key={config.mode}
+            onClick={() => setMode(config.mode)}
+            className={`rounded-xl py-2 text-xs font-black ${mode === config.mode ? 'bg-lime-200 text-slate-950' : 'text-slate-200'}`}
+          >
+            {config.label}
+          </button>
+        ))}
+      </div>
+      <div className="space-y-2">
+        {sortedRows.map((item, index) => {
+          const value = active.getValue(item);
+          const formattedValue = active.unit === 'kg' ? value.toFixed(1) : Math.round(value).toString();
+          return (
+            <div key={`${active.mode}-${item.id}`} className={`rank-row rounded-2xl px-3 py-2 text-xs font-bold ${item.id === playerId ? 'rank-row-active bg-lime-200/20 text-lime-100' : 'bg-white/10 text-slate-200'}`}>
+              <div className="flex justify-between text-sm font-black">
+                <span>{index + 1}. {item.id}</span>
+                <span>{formattedValue}{active.unit}</span>
+              </div>
               <div className="mt-1 grid grid-cols-2 gap-1 text-[11px] text-slate-300">
-                <span>{"\u4eca\u65e5"} {item.dailyCasts} {"\u6761"}</span><span>{"\u4eca\u65e5"} {item.dailyScore} {"\u5206"}</span>
-                <span>{"\u603b"} {item.totalCasts} {"\u6761"}</span><span>{"\u603b"} {item.totalWeight.toFixed(1)}kg</span>
+                <span>{"\u4eca\u65e5"} {item.dailyWeight.toFixed(1)}kg</span><span>{"\u4eca\u65e5"} {Math.round(item.dailyCoins ?? item.dailyScore ?? 0)} {"\u91d1\u5e01"}</span>
+                <span>{"\u603b"} {item.totalCasts} {"\u6761"}</span><span>{"\u603b"} {Math.round(item.totalCoins ?? item.dailyScore ?? 0)} {"\u91d1\u5e01"}</span>
               </div>
             </div>
-          ))}
-        </div>
-      )}
+          );
+        })}
+      </div>
       <div className="space-y-2">
         {broadcasts.slice(0, 3).map((item, index) => (
-          <div key={`${item.id}-${item.fish}-${index}`} className="rounded-2xl bg-white/10 px-3 py-2 text-xs text-slate-200">
+          <div key={`${item.id}-${item.fish}-${index}`} className="rank-row rounded-2xl bg-white/10 px-3 py-2 text-xs text-slate-200">
             <BroadcastLine item={item} />
           </div>
         ))}

@@ -13,8 +13,18 @@ export type PlayerRankRow = {
   dailyCasts: number;
   dailyWeight: number;
   dailyScore: number;
+  dailyCoins?: number;
   totalCasts: number;
   totalWeight: number;
+  totalCoins?: number;
+};
+
+export type BroadcastItem = {
+  id: string;
+  district: string;
+  fish: string;
+  rarity: Fish['rarity'];
+  createdAt?: string;
 };
 
 type CatchPayload = {
@@ -25,6 +35,7 @@ type CatchPayload = {
   rarity: Fish['rarity'];
   weight: number;
   score: number;
+  coins: number;
 };
 
 const apiBase = (import.meta.env.VITE_LEADERBOARD_API_URL as string | undefined) || '/api';
@@ -71,6 +82,17 @@ export const fetchPlayerRankRows = async (playerId?: string) => {
   return (await response.json()) as PlayerRankRow[];
 };
 
+export const fetchBroadcasts = async () => {
+  const query = new URLSearchParams({ limit: '10' });
+  const response = await apiFetch(`/broadcasts?${query.toString()}`);
+  return (await response.json()) as BroadcastItem[];
+};
+
+export const fetchOnlineStatus = async () => {
+  await apiFetch('/health');
+  return true;
+};
+
 export const recordCatchOnline = async (payload: CatchPayload) => {
   await apiFetch('/catches', {
     method: 'POST',
@@ -83,6 +105,7 @@ export const recordCatchOnline = async (payload: CatchPayload) => {
       rarity: payload.rarity,
       weight: payload.weight,
       score: payload.score,
+      coins: payload.coins,
     }),
   });
 };

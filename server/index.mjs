@@ -1,8 +1,27 @@
 import cors from 'cors';
 import express from 'express';
+import { existsSync, readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 
 const { Pool } = pg;
+
+const serverDir = path.dirname(fileURLToPath(import.meta.url));
+const distDir = path.resolve(serverDir, '../dist');
+const envPath = path.resolve(serverDir, '../.env');
+
+if (existsSync(envPath)) {
+  for (const line of readFileSync(envPath, 'utf8').split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const separatorIndex = trimmed.indexOf('=');
+    if (separatorIndex <= 0) continue;
+    const key = trimmed.slice(0, separatorIndex).trim();
+    const value = trimmed.slice(separatorIndex + 1).trim().replace(/^['"]|['"]$/g, '');
+    if (!(key in process.env)) process.env[key] = value;
+  }
+}
 
 const port = Number(process.env.PORT || 8787);
 const databaseUrl = process.env.DATABASE_URL;
@@ -35,11 +54,13 @@ const districts = [
   '增城区',
 ];
 
+const broadcastRarities = new Set(['legendary', 'epic', 'mutant', 'king']);
+
 const isValidDate = (value) => /^\d{4}-\d{2}-\d{2}$/.test(value);
 
 app.get('/api/health', async (_request, response) => {
   await pool.query('select 1');
-  response.json({ ok: true });
+  response.json({ ok: true, storage: 'postgresql' });
 });
 
 app.get('/api/leaderboard/districts', async (request, response) => {
@@ -79,41 +100,41 @@ app.get('/api/leaderboard/players', async (request, response) => {
 
   const result = await pool.query(
     `
-      with daily as (
+      with player_totals as (
         select
           player_id,
-          count(*)::int as daily_catches,
-          coalesce(sum(weight), 0)::float as daily_weight,
-          coalesce(sum(score), 0)::int as daily_score
+          count(*) filter (where score_date = $1)::int as daily_catches,
+          coalesce(sum(weight) filter (where score_date = $1), 0)::float as daily_weight,
+          coalesce(sum(score) filter (where score_date = $1), 0)::int as daily_score,
+          coalesce(sum(coins) filter (where score_date = $1), 0)::int as daily_coins,
+          count(*)::int as total_catches,
+          coalesce(sum(weight), 0)::float as total_weight,
+          coalesce(sum(coins), 0)::int as total_coins
         from catch_events
-        where score_date = $1
         group by player_id
       ),
-      totals as (
-        select
-          player_id,
-          count(*)::int as total_catches,
-          coalesce(sum(weight), 0)::float as total_weight
-        from catch_events
-        group by player_id
+      candidates as (
+        (select player_id from player_totals where daily_catches > 0 order by daily_weight desc, daily_score desc, daily_catches desc, player_id asc limit $2)
+        union
+        (select player_id from player_totals where daily_catches > 0 order by daily_coins desc, daily_score desc, daily_weight desc, player_id asc limit $2)
+        union
+        (select player_id from player_totals where total_catches > 0 order by total_catches desc, total_weight desc, player_id asc limit $2)
+        union
+        (select player_id from player_totals where total_coins > 0 order by total_coins desc, total_weight desc, player_id asc limit $2)
+        union
+        (select $3::text as player_id where $3 <> '')
       ),
       ranked as (
         select
-          daily.player_id,
-          daily.daily_catches,
-          daily.daily_weight,
-          daily.daily_score,
-          coalesce(totals.total_catches, 0)::int as total_catches,
-          coalesce(totals.total_weight, 0)::float as total_weight,
+          player_totals.*,
           row_number() over (
-            order by daily.daily_weight desc, daily.daily_score desc, daily.daily_catches desc, daily.player_id asc
+            order by daily_weight desc, daily_score desc, daily_catches desc, player_totals.player_id asc
           )::int as rank
-        from daily
-        left join totals on totals.player_id = daily.player_id
+        from player_totals
+        inner join candidates on candidates.player_id = player_totals.player_id
       )
       select *
       from ranked
-      where rank <= $2 or ($3 <> '' and player_id = $3)
       order by rank asc
     `,
     [scoreDate, limit, requestedPlayerId],
@@ -125,8 +146,35 @@ app.get('/api/leaderboard/players', async (request, response) => {
     dailyCasts: Number(row.daily_catches),
     dailyWeight: Number(row.daily_weight),
     dailyScore: Number(row.daily_score),
+    dailyCoins: Number(row.daily_coins),
     totalCasts: Number(row.total_catches),
     totalWeight: Number(row.total_weight),
+    totalCoins: Number(row.total_coins),
+  })));
+});
+
+app.get('/api/broadcasts', async (request, response) => {
+  const requestedLimit = Number(request.query.limit);
+  const limit = Number.isFinite(requestedLimit)
+    ? Math.min(20, Math.max(1, Math.trunc(requestedLimit)))
+    : 10;
+
+  const result = await pool.query(
+    `
+      select player_id, province, fish_name, rarity, created_at
+      from broadcast_events
+      order by created_at desc, id desc
+      limit $1
+    `,
+    [limit],
+  );
+
+  response.json(result.rows.map((row) => ({
+    id: row.player_id,
+    district: row.province,
+    fish: row.fish_name,
+    rarity: row.rarity,
+    createdAt: row.created_at,
   })));
 });
 
@@ -140,6 +188,7 @@ app.post('/api/catches', async (request, response) => {
     rarity,
     weight,
     score,
+    coins,
   } = request.body ?? {};
 
   if (
@@ -148,13 +197,22 @@ app.post('/api/catches', async (request, response) => {
     !districts.includes(province) ||
     typeof fishId !== 'string' ||
     typeof fishName !== 'string' ||
-    typeof rarity !== 'string' ||
-    !Number.isFinite(Number(weight)) ||
-    !Number.isFinite(Number(score))
+     typeof rarity !== 'string' ||
+     !Number.isFinite(Number(weight)) ||
+     !Number.isFinite(Number(score)) ||
+     (coins !== undefined && !Number.isFinite(Number(coins)))
   ) {
     response.status(400).json({ error: 'invalid_catch_payload' });
     return;
   }
+
+  const normalizedPlayerId = playerId.slice(0, 32);
+  const normalizedFishId = fishId.slice(0, 64);
+  const normalizedFishName = fishName.slice(0, 64);
+  const normalizedRarity = rarity.slice(0, 24);
+  const normalizedWeight = Number(weight);
+  const normalizedScore = Math.max(0, Math.round(Number(score)));
+  const normalizedCoins = Math.max(0, Math.round(Number(coins ?? 0)));
 
   const client = await pool.connect();
   try {
@@ -169,20 +227,22 @@ app.post('/api/catches', async (request, response) => {
           fish_name,
           rarity,
           weight,
-          score
-        ) values ($1, $2, $3, $4, $5, $6, $7, $8)
+          score,
+          coins
+        ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       `,
       [
         scoreDate,
-        playerId.slice(0, 32),
+        normalizedPlayerId,
         province,
-        fishId.slice(0, 64),
-        fishName.slice(0, 64),
-        rarity.slice(0, 24),
-        Number(weight),
-        Math.max(0, Math.round(Number(score))),
-      ],
-    );
+        normalizedFishId,
+        normalizedFishName,
+         normalizedRarity,
+         normalizedWeight,
+         normalizedScore,
+         normalizedCoins,
+        ],
+      );
     await client.query(
       `
         insert into district_scores (score_date, province, score, updated_at)
@@ -192,8 +252,22 @@ app.post('/api/catches', async (request, response) => {
           score = district_scores.score + excluded.score,
           updated_at = now()
       `,
-      [scoreDate, province, Math.max(0, Math.round(Number(score)))],
+      [scoreDate, province, normalizedScore],
     );
+    if (broadcastRarities.has(normalizedRarity)) {
+      await client.query(
+        `
+          insert into broadcast_events (
+            player_id,
+            province,
+            fish_id,
+            fish_name,
+            rarity
+          ) values ($1, $2, $3, $4, $5)
+        `,
+        [normalizedPlayerId, province, normalizedFishId, normalizedFishName, normalizedRarity],
+      );
+    }
     await client.query('commit');
     response.status(201).json({ ok: true });
   } catch (error) {
@@ -203,6 +277,13 @@ app.post('/api/catches', async (request, response) => {
     client.release();
   }
 });
+
+if (existsSync(distDir)) {
+  app.use(express.static(distDir));
+  app.get(/^(?!\/api\/).*/, (_request, response) => {
+    response.sendFile(path.join(distDir, 'index.html'));
+  });
+}
 
 app.use((error, _request, response, _next) => {
   console.error(error);
