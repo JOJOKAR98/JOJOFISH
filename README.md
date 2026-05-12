@@ -2,7 +2,7 @@
 
 ## Version
 
-Current release: v1.0.1. Future releases must bump `package.json` and `package-lock.json` before pushing.
+Current release: v1.0.2. Future releases must bump `package.json` and `package-lock.json` before pushing.
 
 ## PostgreSQL storage
 

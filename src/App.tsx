@@ -518,12 +518,12 @@ function App() {
       }
 
       try {
-        const [, scores, rows, nextBroadcasts] = await Promise.all([
+        const [, scores, rows] = await Promise.all([
           fetchOnlineStatus(),
           fetchDistrictScores(),
           fetchPlayerRankRows(player.playerId),
-          fetchBroadcasts(),
         ]);
+        const nextBroadcasts = await fetchBroadcasts().catch(() => []);
         if (cancelled) return;
         setRemoteProvinceScores(scores);
         setRemotePlayerRows(rows);
@@ -802,7 +802,7 @@ function App() {
         .then(() => Promise.all([
           fetchDistrictScores(),
           fetchPlayerRankRows(player.playerId),
-          fetchBroadcasts(),
+          fetchBroadcasts().catch(() => []),
         ]))
         .then(([scores, rows, nextBroadcasts]) => {
           setRemoteProvinceScores(scores);
