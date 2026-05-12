@@ -10,6 +10,9 @@ export interface Fish {
   id: string;
   name: string;
   rarity: Rarity;
+  catchType?: 'fish' | 'junk' | 'chest';
+  chestQuality?: 'wood' | 'bronze' | 'silver' | 'gold' | 'abyss';
+  rewardTier?: number;
   baseWeight: number;
   coinMin: number;
   coinMax: number;
@@ -42,6 +45,8 @@ export interface FishingCharacter {
   id: string;
   name: string;
   title: string;
+  avatarKind?: 'male' | 'female' | 'fish';
+  fishIcon?: 'carp' | 'moon' | 'gold' | 'ghost' | 'king';
   price: number;
   luck: number;
   focus: number;
@@ -83,6 +88,7 @@ export interface PlayerState {
   ownedCharacterIds: string[];
   equippedCharacterId: string;
   dailyLuckDate: string;
+  lastLuckAdAt: number;
   provinceContribution: number;
   dailyCasts: number;
   dailyWeight: number;
@@ -96,6 +102,13 @@ export interface PlayerState {
   newbieWins: number;
 }
 
+export interface FishRecord {
+  id: string;
+  count: number;
+  maxWeight: number;
+  firstDistrict?: string;
+}
+
 export interface ResultState {
   success: boolean;
   fish?: Fish;
@@ -106,4 +119,6 @@ export interface ResultState {
   message: string;
   reviveOffered: boolean;
   isNew?: boolean;
+  rewardBaitName?: string;
+  rewardKind?: 'fish' | 'junk' | 'chest';
 }

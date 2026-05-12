@@ -33,6 +33,14 @@ create table if not exists broadcast_events (
   created_at timestamptz not null default now()
 );
 
+create table if not exists player_saves (
+  player_id text primary key,
+  player_state jsonb not null,
+  codex jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 create index if not exists catch_events_score_date_idx
   on catch_events (score_date);
 

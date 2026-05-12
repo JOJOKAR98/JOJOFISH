@@ -1,4 +1,4 @@
-import { anomalies, baits, characters, fishPool, hiddenKings, provinces, rods } from '../data/gameData';
+import { anomalies, baits, characters, fishPool, hiddenKings, junkItems, provinces, rods, treasureChests } from '../data/gameData';
 import type { Anomaly, Bait, Fish, FishingCharacter, PlayerState, Rod, SeaZone } from '../types';
 
 export const todayKey = () => {
@@ -30,6 +30,7 @@ export const createDefaultPlayer = (): PlayerState => ({
   ownedCharacterIds: ['brook-mallow'],
   equippedCharacterId: 'brook-mallow',
   dailyLuckDate: '',
+  lastLuckAdAt: 0,
   provinceContribution: 0,
   dailyCasts: 0,
   dailyWeight: 0,
@@ -59,7 +60,7 @@ export const getLuck = (player: PlayerState) => {
   const rod = getEquippedRod(player);
   const bait = getEquippedBait(player);
   const character = getEquippedCharacter(player);
-  const daily = player.dailyLuckDate === todayKey() ? 12 : 0;
+  const daily = Date.now() - (player.lastLuckAdAt || 0) < 60 * 60 * 1000 ? 12 : 0;
   return rod.luck + bait.luck + character.luck + daily;
 };
 
@@ -76,7 +77,20 @@ export const pickFish = (player: PlayerState, zone: SeaZone, anomaly: Anomaly): 
   const zoneBoost = zone.danger / 12;
   const baitBoost = bait.rareBoost;
   const dailyKing = getDailyKing();
+  const junkWeight = Math.max(42, 78 - luck * 0.8 - baitBoost * 1.2 + zone.danger * 0.28);
+  const chestBase = 170 + luck * 2.4 + baitBoost * 5.5 + anomalyBoost * 64 + zoneBoost * 13;
   const candidates = [
+    ...junkItems.map((fish, index) => ({
+      fish,
+      weight: Math.max(0.8, junkWeight - index * 0.85),
+    })),
+    ...treasureChests.map((fish) => {
+      const tier = fish.rewardTier ?? 1;
+      return {
+        fish,
+        weight: Math.max(0.04, chestBase / (tier * tier * 1.9)),
+      };
+    }),
     ...fishPool.map((fish) => {
       const rarityBoost =
         fish.rarity === 'common'
@@ -103,17 +117,4 @@ export const pickFish = (player: PlayerState, zone: SeaZone, anomaly: Anomaly): 
     if (roll <= 0) return item.fish;
   }
   return fishPool[0];
-};
-
-export const createProvinceScores = (playerProvince: string, playerContribution: number) => {
-  const scores = provinces.map((province) => ({
-    province,
-    score: province === playerProvince ? playerContribution : 0,
-  }));
-
-  return scores.sort((a, b) => b.score - a.score);
-};
-
-export const getProvinceRank = (scores: ReturnType<typeof createProvinceScores>, province: string) => {
-  return scores.findIndex((item) => item.province === province) + 1;
 };

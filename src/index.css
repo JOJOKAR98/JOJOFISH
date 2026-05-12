@@ -61,6 +61,136 @@ button {
     0 0 22px rgba(20, 184, 166, 0.14);
 }
 
+.player-hud,
+.energy-hud,
+.pk-card {
+  border: 1px solid rgba(217, 249, 157, 0.18);
+  background:
+    linear-gradient(180deg, rgba(2, 6, 23, 0.72), rgba(8, 47, 73, 0.48)),
+    radial-gradient(circle at 20% 0%, rgba(190, 242, 100, 0.18), transparent 42%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 10px 26px rgba(0, 0, 0, 0.28);
+}
+
+.player-avatar-wrap {
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, rgba(217, 249, 157, 0.22), rgba(6, 78, 59, 0.56)),
+    #082f49;
+  box-shadow:
+    inset 0 0 0 2px rgba(236, 253, 245, 0.2),
+    0 0 14px rgba(190, 242, 100, 0.16);
+}
+
+.player-avatar-pixel {
+  width: 48px;
+  height: 62px;
+  transform: translateY(8px) scale(0.62);
+  transform-origin: 50% 100%;
+}
+
+.player-avatar-pixel .character-portrait {
+  transform: none;
+}
+
+.energy-hud {
+  background:
+    linear-gradient(180deg, rgba(6, 78, 59, 0.76), rgba(2, 44, 34, 0.56)),
+    radial-gradient(circle at 70% 0%, rgba(217, 249, 157, 0.2), transparent 42%);
+}
+
+.pk-card {
+  background:
+    linear-gradient(180deg, rgba(2, 6, 23, 0.66), rgba(12, 74, 110, 0.44)),
+    radial-gradient(circle at 14% 0%, rgba(34, 211, 238, 0.18), transparent 42%);
+}
+
+.pk-title,
+.pk-card .text-cyan-50\/82 {
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.82), 0 0 10px rgba(20, 184, 166, 0.22);
+}
+
+.district-select {
+  border: 1px solid rgba(125, 211, 252, 0.2);
+  color: #ecfeff;
+  background: rgba(2, 6, 23, 0.48);
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.78);
+}
+
+.location-button {
+  border: 1px solid rgba(217, 249, 157, 0.28);
+  color: #082f49;
+  background: linear-gradient(180deg, #d9f99d, #67e8f9);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.24), 0 0 14px rgba(190, 242, 100, 0.16);
+}
+
+.stardew-ui .player-hud,
+.stardew-ui .energy-hud,
+.stardew-ui .pk-card {
+  border: 4px solid var(--farm-ink);
+  border-radius: 6px;
+  background:
+    repeating-linear-gradient(90deg, rgba(124, 70, 38, 0.09) 0 12px, transparent 12px 24px),
+    linear-gradient(180deg, #fff2bf 0%, #f3c878 100%);
+  color: #2f1d14;
+  box-shadow:
+    inset 0 0 0 3px #d69742,
+    inset 0 -7px 0 rgba(124, 70, 38, 0.14),
+    0 5px 0 var(--farm-ink-soft),
+    0 9px 14px rgba(63, 42, 29, 0.24);
+  backdrop-filter: none;
+}
+
+.stardew-ui .player-hud [class*="text-"],
+.stardew-ui .energy-hud [class*="text-"],
+.stardew-ui .pk-card [class*="text-"] {
+  color: #2f1d14;
+  text-shadow: none;
+}
+
+.stardew-ui .player-avatar-wrap {
+  border: 3px solid var(--farm-ink);
+  border-radius: 4px;
+  background:
+    linear-gradient(180deg, #8fd0f1 0 48%, #6aaa4d 48% 100%);
+  box-shadow:
+    inset 0 0 0 2px rgba(255, 242, 191, 0.58),
+    0 2px 0 var(--farm-ink-soft);
+}
+
+.stardew-ui .district-select {
+  border: 3px solid var(--farm-ink);
+  border-radius: 4px;
+  background: #fff7d1;
+  color: #2f1d14;
+  box-shadow: inset 0 0 0 2px #d69742;
+  text-shadow: none;
+}
+
+.stardew-ui .district-picker-button {
+  min-width: 0;
+}
+
+.stardew-ui .district-picker-button span:last-child {
+  color: #7c4626;
+}
+
+.stardew-ui .location-button {
+  border: 3px solid var(--farm-ink);
+  border-radius: 4px;
+  color: #2f1d14;
+  background: linear-gradient(180deg, #dff39a 0%, #8ccf5d 100%);
+  box-shadow:
+    inset 0 0 0 2px rgba(255, 255, 220, 0.74),
+    0 3px 0 #3f2a1d;
+}
+
+.stardew-ui .pk-title,
+.stardew-ui .pk-card .text-cyan-50\/82 {
+  text-shadow: 1px 1px 0 rgba(255, 242, 191, 0.7);
+}
+
 @media (min-width: 640px) {
   .phone-frame {
     border-radius: 34px;
@@ -401,6 +531,500 @@ button {
   animation: prize-pop 0.52s cubic-bezier(0.2, 1.35, 0.35, 1);
 }
 
+.pixel-fish {
+  --fish-main: #8fd0f1;
+  --fish-mid: #fff2bf;
+  --fish-dark: #2d86ad;
+  --fish-spot-x: 34%;
+  --fish-body-top: 24%;
+  --fish-body-width: 48%;
+  --fish-body-height: 48%;
+  --fish-tail-top: 24%;
+  --fish-tail-width: 24%;
+  --fish-head-width: 21%;
+  --fish-head-height: 40%;
+  --fish-eye-top: 35%;
+  --fish-mark-y: 36%;
+  --fish-mark-size: 8%;
+  --fish-dorsal-left: 39%;
+  --fish-tail-angle: 0deg;
+  --fish-scale-y: 1;
+  position: relative;
+  width: 128px;
+  height: 64px;
+  image-rendering: pixelated;
+  filter: drop-shadow(4px 5px 0 rgba(63, 42, 29, 0.28));
+  transform: scaleY(var(--fish-scale-y));
+}
+
+.pixel-fish-large {
+  width: 196px;
+  height: 104px;
+  transform: translateY(-2px) scaleY(var(--fish-scale-y));
+}
+
+.pixel-fish-hidden {
+  filter: grayscale(1) brightness(0.18) blur(0.5px);
+  opacity: 0.78;
+}
+
+.pf-body,
+.pf-head,
+.pf-tail,
+.pf-fin,
+.pf-eye,
+.pf-mark,
+.pf-feature {
+  position: absolute;
+  display: block;
+  border-radius: 0;
+  box-sizing: border-box;
+}
+
+.pf-body {
+  left: 25%;
+  top: var(--fish-body-top);
+  width: var(--fish-body-width);
+  height: var(--fish-body-height);
+  border: 3px solid #3f2a1d;
+  background:
+    linear-gradient(90deg, rgba(255, 242, 191, 0.22) 0 14%, transparent 14%),
+    linear-gradient(180deg, var(--fish-mid), var(--fish-main) 52%, var(--fish-dark));
+  box-shadow: inset 0 -5px 0 rgba(63, 42, 29, 0.18);
+}
+
+.pf-head {
+  right: 15%;
+  top: calc(var(--fish-body-top) + 4%);
+  width: var(--fish-head-width);
+  height: var(--fish-head-height);
+  border: 3px solid #3f2a1d;
+  border-left: 0;
+  background: linear-gradient(180deg, var(--fish-mid), var(--fish-main) 56%, var(--fish-dark));
+}
+
+.pf-tail {
+  left: 8%;
+  top: var(--fish-tail-top);
+  width: var(--fish-tail-width);
+  height: 50%;
+  background:
+    linear-gradient(135deg, transparent 0 26%, #3f2a1d 26% 34%, var(--fish-dark) 34% 62%, #3f2a1d 62% 70%, transparent 70%),
+    linear-gradient(45deg, transparent 0 26%, #3f2a1d 26% 34%, var(--fish-main) 34% 62%, #3f2a1d 62% 70%, transparent 70%);
+  transform: rotate(var(--fish-tail-angle));
+  transform-origin: 100% 50%;
+}
+
+.pf-eye {
+  right: 20%;
+  top: var(--fish-eye-top);
+  width: 8%;
+  height: 12%;
+  background: #fff2bf;
+  border: 2px solid #3f2a1d;
+  box-shadow: inset -2px -2px 0 #020617;
+}
+
+.pf-fin {
+  width: 16%;
+  height: 18%;
+  background: var(--fish-dark);
+  border: 3px solid #3f2a1d;
+}
+
+.pf-fin-top {
+  left: var(--fish-dorsal-left);
+  top: 9%;
+  clip-path: polygon(0 100%, 50% 0, 100% 100%);
+}
+
+.pf-fin-bottom {
+  left: 43%;
+  bottom: 7%;
+  clip-path: polygon(0 0, 100% 0, 42% 100%);
+}
+
+.pf-mark {
+  background: rgba(63, 42, 29, 0.32);
+  border: 2px solid rgba(63, 42, 29, 0.32);
+}
+
+.pf-mark-a {
+  left: var(--fish-spot-x);
+  top: var(--fish-mark-y);
+  width: var(--fish-mark-size);
+  height: calc(var(--fish-mark-size) + 5%);
+}
+
+.pf-mark-b {
+  left: calc(var(--fish-spot-x) + 15%);
+  top: calc(var(--fish-mark-y) + 16%);
+  width: calc(var(--fish-mark-size) - 1%);
+  height: calc(var(--fish-mark-size) + 3%);
+}
+
+.pf-mark-c {
+  left: calc(var(--fish-spot-x) + 27%);
+  top: calc(var(--fish-mark-y) - 8%);
+  width: calc(var(--fish-mark-size) - 2%);
+  height: calc(var(--fish-mark-size) + 1%);
+  background: rgba(255, 242, 191, 0.42);
+  border-color: rgba(63, 42, 29, 0.42);
+}
+
+.fish-shape-long .pf-body {
+  left: 21%;
+  width: 54%;
+  height: 40%;
+}
+
+.fish-shape-long .pf-head {
+  right: 13%;
+  height: 34%;
+}
+
+.fish-shape-eel .pf-body {
+  left: 17%;
+  top: 34%;
+  width: 62%;
+  height: 26%;
+}
+
+.fish-shape-eel .pf-head {
+  right: 10%;
+  top: 35%;
+  width: 18%;
+  height: 24%;
+}
+
+.fish-shape-round .pf-body {
+  left: 27%;
+  top: 18%;
+  width: 42%;
+  height: 58%;
+}
+
+.fish-shape-round .pf-head {
+  right: 16%;
+  top: 25%;
+  width: 23%;
+  height: 46%;
+}
+
+.fish-shape-spike .pf-fin-top {
+  width: 30%;
+  top: 3%;
+  clip-path: polygon(0 100%, 16% 0, 32% 100%, 50% 0, 68% 100%, 84% 0, 100% 100%);
+}
+
+.fish-shape-spike .pf-body {
+  box-shadow:
+    inset 0 -5px 0 rgba(63, 42, 29, 0.18),
+    8px -8px 0 -4px var(--fish-mid),
+    18px -9px 0 -5px var(--fish-mid);
+}
+
+.fish-shape-wide .pf-body {
+  top: 18%;
+  height: 56%;
+}
+
+.fish-shape-hook .pf-body {
+  top: 30%;
+  height: 34%;
+  transform: skewY(-8deg);
+}
+
+.fish-shape-hook .pf-tail {
+  top: 18%;
+  transform: rotate(-8deg);
+}
+
+.fish-shape-flat .pf-body {
+  top: 26%;
+  height: 32%;
+  width: 58%;
+}
+
+.fish-shape-flat .pf-head {
+  top: 29%;
+  height: 28%;
+}
+
+.fish-pattern-stripes .pf-body {
+  background:
+    repeating-linear-gradient(90deg, rgba(63, 42, 29, 0.24) 0 8%, transparent 8% 18%),
+    linear-gradient(180deg, var(--fish-mid), var(--fish-main) 52%, var(--fish-dark));
+}
+
+.fish-pattern-spots .pf-mark {
+  background: #fff2bf;
+  border-color: #3f2a1d;
+}
+
+.fish-pattern-star .pf-mark-a,
+.fish-pattern-star .pf-mark-b {
+  width: 10%;
+  height: 10%;
+  background: #fff2bf;
+  border-color: #3f2a1d;
+  transform: rotate(45deg);
+  box-shadow: 0 0 12px var(--fish-mid);
+}
+
+.fish-pattern-mask .pf-head {
+  background:
+    linear-gradient(90deg, #3f2a1d 0 42%, transparent 42%),
+    linear-gradient(180deg, var(--fish-mid), var(--fish-main) 56%, var(--fish-dark));
+}
+
+.fish-pattern-mask .pf-mark-a {
+  width: 16%;
+  height: 12%;
+  background: var(--fish-dark);
+  border-color: #3f2a1d;
+}
+
+.fish-feature-crown .pf-feature {
+  right: 17%;
+  top: 10%;
+  width: 20%;
+  height: 18%;
+  background: linear-gradient(180deg, #fff2bf, #ffd464);
+  border: 3px solid #3f2a1d;
+  clip-path: polygon(0 100%, 0 35%, 22% 62%, 38% 8%, 55% 62%, 75% 20%, 100% 62%, 100% 100%);
+}
+
+.fish-feature-light .pf-feature {
+  right: 7%;
+  top: 36%;
+  width: 12%;
+  height: 12%;
+  background: #fff2bf;
+  border: 2px solid #3f2a1d;
+  box-shadow: 0 0 16px #fff2bf, 0 0 28px var(--fish-mid);
+}
+
+.fish-feature-whisker .pf-feature {
+  right: 3%;
+  top: 48%;
+  width: 24%;
+  height: 16%;
+  border-top: 3px solid #3f2a1d;
+  border-bottom: 3px solid #3f2a1d;
+}
+
+.fish-feature-fang .pf-feature {
+  right: 15%;
+  top: 63%;
+  width: 10%;
+  height: 16%;
+  background: #fff2bf;
+  border: 2px solid #3f2a1d;
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+}
+
+.pixel-chest {
+  position: relative;
+  width: 150px;
+  height: 96px;
+  image-rendering: pixelated;
+  filter: drop-shadow(5px 6px 0 rgba(63, 42, 29, 0.32));
+}
+
+.pixel-chest::before,
+.pixel-chest::after,
+.pixel-chest span,
+.pixel-chest i {
+  content: "";
+  position: absolute;
+  display: block;
+  border-radius: 0;
+}
+
+.pixel-chest::before {
+  left: 18px;
+  top: 20px;
+  width: 114px;
+  height: 30px;
+  border: 5px solid #3f2a1d;
+  border-bottom: 0;
+  background: linear-gradient(180deg, var(--chest-light), var(--chest-main));
+}
+
+.pixel-chest::after {
+  left: 12px;
+  top: 46px;
+  width: 126px;
+  height: 42px;
+  border: 5px solid #3f2a1d;
+  background:
+    linear-gradient(90deg, transparent 0 38%, #3f2a1d 38% 44%, var(--chest-metal) 44% 56%, #3f2a1d 56% 62%, transparent 62%),
+    linear-gradient(180deg, var(--chest-main), var(--chest-dark));
+}
+
+.pixel-chest span {
+  left: 65px;
+  top: 50px;
+  width: 20px;
+  height: 20px;
+  z-index: 2;
+  border: 4px solid #3f2a1d;
+  background: var(--chest-metal);
+}
+
+.pixel-chest i {
+  left: 30px;
+  top: 30px;
+  width: 90px;
+  height: 9px;
+  border-top: 4px solid rgba(255, 242, 191, 0.58);
+}
+
+.pixel-chest-wood {
+  --chest-light: #d69b52;
+  --chest-main: #9b5d31;
+  --chest-dark: #5b321e;
+  --chest-metal: #d6d3d1;
+}
+
+.pixel-chest-bronze {
+  --chest-light: #c28b45;
+  --chest-main: #7c4626;
+  --chest-dark: #3f2a1d;
+  --chest-metal: #67e8f9;
+}
+
+.pixel-chest-silver {
+  --chest-light: #e2e8f0;
+  --chest-main: #94a3b8;
+  --chest-dark: #475569;
+  --chest-metal: #fff2bf;
+}
+
+.pixel-chest-gold {
+  --chest-light: #fff2bf;
+  --chest-main: #ffd464;
+  --chest-dark: #d69742;
+  --chest-metal: #67e8f9;
+}
+
+.pixel-chest-abyss {
+  --chest-light: #67e8f9;
+  --chest-main: #334155;
+  --chest-dark: #020617;
+  --chest-metal: #fb7185;
+}
+
+.pixel-chest-abyss {
+  box-shadow: 0 0 22px rgba(103, 232, 249, 0.28), 0 0 36px rgba(251, 113, 133, 0.16);
+}
+
+.pixel-junk {
+  position: relative;
+  width: 156px;
+  height: 98px;
+  image-rendering: pixelated;
+  filter: drop-shadow(5px 6px 0 rgba(63, 42, 29, 0.32)) saturate(0.75);
+}
+
+.pixel-junk span,
+.pixel-junk i,
+.pixel-junk b {
+  position: absolute;
+  display: block;
+  border-radius: 0;
+  box-sizing: border-box;
+}
+
+.pixel-junk-tire span {
+  left: 38px;
+  top: 14px;
+  width: 82px;
+  height: 82px;
+  border: 18px solid #1f2937;
+  background: transparent;
+  box-shadow: inset 0 0 0 7px #64748b, 0 0 0 5px #3f2a1d;
+}
+
+.pixel-junk-tire i {
+  left: 51px;
+  top: 30px;
+  width: 58px;
+  height: 8px;
+  background: #94a3b8;
+  transform: rotate(16deg);
+}
+
+.pixel-junk-seaweed span,
+.pixel-junk-seaweed i,
+.pixel-junk-seaweed b {
+  bottom: 10px;
+  width: 20px;
+  background: #3f7f3c;
+  border: 4px solid #3f2a1d;
+}
+
+.pixel-junk-seaweed span {
+  left: 44px;
+  height: 74px;
+  transform: skewX(-12deg);
+}
+
+.pixel-junk-seaweed i {
+  left: 72px;
+  height: 84px;
+  background: #6aaa4d;
+  transform: skewX(13deg);
+}
+
+.pixel-junk-seaweed b {
+  left: 100px;
+  height: 58px;
+  background: #2f6335;
+  transform: skewX(-8deg);
+}
+
+.pixel-junk-can span {
+  left: 48px;
+  top: 20px;
+  width: 66px;
+  height: 64px;
+  border: 5px solid #3f2a1d;
+  background:
+    repeating-linear-gradient(0deg, rgba(63, 42, 29, 0.16) 0 7px, transparent 7px 14px),
+    linear-gradient(180deg, #94a3b8, #64748b);
+  transform: rotate(-10deg);
+}
+
+.pixel-junk-can i {
+  left: 55px;
+  top: 16px;
+  width: 52px;
+  height: 12px;
+  border: 4px solid #3f2a1d;
+  background: #cbd5e1;
+  transform: rotate(-10deg);
+}
+
+.pixel-junk-boot span {
+  left: 36px;
+  top: 18px;
+  width: 50px;
+  height: 68px;
+  border: 5px solid #3f2a1d;
+  background: #5b321e;
+}
+
+.pixel-junk-boot i {
+  left: 70px;
+  top: 56px;
+  width: 58px;
+  height: 30px;
+  border: 5px solid #3f2a1d;
+  background: #7c4626;
+}
+
 .stardew-ui {
   --farm-ink: #3f2a1d;
   --farm-ink-soft: #6e4328;
@@ -447,6 +1071,22 @@ button {
     0 0 0 8px #6f3f24,
     0 20px 0 rgba(63, 42, 29, 0.22),
     0 28px 64px rgba(31, 45, 31, 0.38);
+}
+
+.stardew-ui .fish-tug-soft {
+  animation: fishing-tug-soft 0.13s steps(2, end);
+}
+
+.stardew-ui .fish-tug-bite {
+  animation: fishing-tug-bite 0.23s steps(3, end);
+}
+
+.stardew-ui .fish-tug-hit {
+  animation: fishing-tug-hit 0.16s steps(2, end);
+}
+
+.stardew-ui .fish-tug-miss {
+  animation: fishing-tug-miss 0.19s steps(3, end);
 }
 
 .stardew-ui .weird-phone {
@@ -918,11 +1558,30 @@ button {
 
 .stardew-ui .action-stage {
   min-height: 285px;
+  align-items: center;
 }
 
 .stardew-ui .action-stack {
   width: 100%;
-  transform: translateY(18px);
+}
+
+.stardew-ui .idle-action-stack {
+  width: min(100%, 270px);
+  margin-left: auto;
+  margin-right: auto;
+  padding-bottom: 0;
+  transform: translateY(-4px);
+}
+
+.stardew-ui .idle-cast-button {
+  opacity: 1;
+  min-width: 182px;
+  min-height: 82px;
+  font-size: 1.75rem;
+}
+
+.stardew-ui .reeling-action-stack {
+  transform: translateY(8px);
 }
 
 .stardew-ui .timing-action-button {
@@ -967,22 +1626,44 @@ button {
 
 .stardew-ui .gear-shop-row {
   width: min(100%, 270px);
+  order: 3;
 }
 
 .stardew-ui .gear-shop-button {
-  min-height: 46px;
+  min-height: 38px;
   border-width: 4px;
   background:
     linear-gradient(180deg, #fff2bf 0%, #f5cf82 58%, #d69742 100%);
   color: #2f1d14;
-  font-size: 0.92rem;
+  font-size: 0.78rem;
   box-shadow:
     inset 0 0 0 2px rgba(255, 255, 220, 0.86),
     0 4px 0 #3f2a1d;
 }
 
+.stardew-ui .footer-gear-panel {
+  border: 4px solid var(--farm-ink);
+  border-radius: 6px;
+  background:
+    linear-gradient(180deg, rgba(255, 242, 191, 0.96), rgba(247, 215, 139, 0.94));
+  box-shadow:
+    inset 0 0 0 2px rgba(255, 255, 220, 0.72),
+    0 4px 0 var(--farm-ink-soft);
+  padding: 0.35rem;
+}
+
+.stardew-ui .footer-tool-button {
+  width: 100%;
+  min-height: 38px;
+  border-width: 3px;
+  box-shadow:
+    inset 0 0 0 2px rgba(255, 255, 220, 0.74),
+    0 3px 0 #3f2a1d;
+}
+
 .stardew-ui .character-entry-button {
   display: flex;
+  order: 2;
   width: min(100%, 270px);
   min-height: 42px;
   align-items: center;
@@ -1000,6 +1681,34 @@ button {
 .stardew-ui .character-entry-button svg {
   color: #213016;
   stroke-width: 3;
+}
+
+.stardew-ui .shop-item {
+  position: relative;
+  overflow: hidden;
+}
+
+.stardew-ui .shop-locked {
+  filter: saturate(0.48);
+}
+
+.stardew-ui .shop-locked::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    repeating-linear-gradient(-45deg, rgba(63, 42, 29, 0.1) 0 6px, transparent 6px 12px),
+    rgba(63, 42, 29, 0.1);
+}
+
+.stardew-ui .shop-lock-icon {
+  color: #3f2a1d;
+  filter: drop-shadow(1px 1px 0 rgba(255, 242, 191, 0.7));
+}
+
+.stardew-ui .shop-equipped {
+  filter: saturate(1.08) brightness(1.03);
 }
 
 .stardew-ui .character-card {
@@ -1086,7 +1795,88 @@ button {
   color: #2f1d14;
 }
 
+.stardew-ui .luck-ad-dock {
+  right: -2px;
+  bottom: 122px;
+  width: 34px;
+  pointer-events: auto;
+}
+
+.stardew-ui .luck-ad-dock .luck-button {
+  width: 34px;
+  min-height: 94px;
+  padding: 0.35rem 0.2rem;
+  border-width: 4px;
+  border-radius: 0;
+  white-space: normal;
+  line-height: 1.08;
+  writing-mode: vertical-rl;
+  text-orientation: upright;
+  letter-spacing: 0;
+  box-shadow:
+    inset 0 0 0 2px rgba(255, 242, 191, 0.7),
+    0 4px 0 #3f2a1d,
+    0 8px 12px rgba(63, 42, 29, 0.24);
+}
+
+.stardew-ui .luck-button-cooling {
+  filter: saturate(0.38) brightness(0.82);
+}
+
+.stardew-ui .broadcast-float {
+  border: 3px solid var(--farm-ink);
+  background:
+    linear-gradient(180deg, rgba(31, 95, 127, 0.92), rgba(22, 67, 93, 0.88)),
+    repeating-linear-gradient(90deg, rgba(255, 242, 191, 0.08) 0 10px, transparent 10px 20px);
+  color: #fff7d1;
+  box-shadow:
+    inset 0 0 0 2px rgba(255, 242, 191, 0.22),
+    0 4px 0 rgba(63, 42, 29, 0.72),
+    0 8px 18px rgba(63, 42, 29, 0.28);
+  animation: broadcast-toast 5.2s ease-in-out forwards;
+}
+
+.stardew-ui .broadcast-track {
+  animation: broadcast-marquee 5.2s linear forwards;
+}
+
+.stardew-ui .broadcast-badge {
+  border: 2px solid #fff2bf;
+  border-radius: 4px;
+  background: rgba(63, 42, 29, 0.72);
+  color: #fff2bf;
+  padding: 0.08rem 0.32rem;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.stardew-ui .broadcast-line,
+.stardew-ui .broadcast-line [class*="text-"] {
+  color: #fff7d1;
+  text-shadow:
+    1px 0 0 #2f1d14,
+    -1px 0 0 #2f1d14,
+    0 1px 0 #2f1d14,
+    0 -1px 0 #2f1d14;
+}
+
+.stardew-ui .broadcast-line .text-lime-200 {
+  color: #dff39a;
+}
+
+.stardew-ui .broadcast-line .text-cyan-200 {
+  color: #8fd0f1;
+}
+
+.stardew-ui .broadcast-line .text-amber-200,
+.stardew-ui .broadcast-line .text-violet-200,
+.stardew-ui .broadcast-line .text-fuchsia-200,
+.stardew-ui .broadcast-line .text-rose-200 {
+  color: #ffd464;
+}
+
 .stardew-ui .hud-footer {
+  position: relative;
   border-top: 5px solid var(--farm-ink);
   background:
     repeating-linear-gradient(90deg, rgba(63, 42, 29, 0.2) 0 14px, transparent 14px 28px),
@@ -1094,6 +1884,19 @@ button {
   color: #fff2bf;
   box-shadow: inset 0 5px 0 rgba(255, 242, 191, 0.18);
   backdrop-filter: none;
+}
+
+.stardew-ui .app-version-badge {
+  position: absolute;
+  left: 8px;
+  bottom: 5px;
+  z-index: 2;
+  color: rgba(255, 242, 191, 0.72);
+  font-size: 0.64rem;
+  font-weight: 900;
+  line-height: 1;
+  pointer-events: none;
+  text-shadow: 1px 1px 0 rgba(63, 42, 29, 0.82);
 }
 
 .stardew-ui .small-nav {
@@ -1108,6 +1911,26 @@ button {
   box-shadow:
     inset 0 0 0 2px rgba(255, 255, 220, 0.9),
     0 4px 0 #3f2a1d;
+}
+
+.stardew-ui .district-option {
+  border: 3px solid var(--farm-ink);
+  border-radius: 6px;
+  background:
+    linear-gradient(180deg, #fff2bf 0%, #f5cf82 100%);
+  color: #2f1d14;
+  box-shadow:
+    inset 0 0 0 2px rgba(255, 255, 220, 0.76),
+    0 3px 0 #3f2a1d;
+}
+
+.stardew-ui .district-option-active {
+  background:
+    linear-gradient(180deg, #dff39a 0%, #8ccf5d 100%);
+}
+
+.stardew-ui .district-option .text-slate-300 {
+  color: #7c4626;
 }
 
 .stardew-ui .rank-tabs button,
@@ -1755,6 +2578,52 @@ button {
   }
 }
 
+@keyframes fishing-tug-soft {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  50% {
+    transform: translate(1px, 0);
+  }
+}
+
+@keyframes fishing-tug-bite {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  30% {
+    transform: translate(2px, 1px);
+  }
+  62% {
+    transform: translate(-1px, -1px);
+  }
+}
+
+@keyframes fishing-tug-hit {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  45% {
+    transform: translate(0, -2px);
+  }
+}
+
+@keyframes fishing-tug-miss {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  28% {
+    transform: translate(-2px, 1px);
+  }
+  65% {
+    transform: translate(2px, 0);
+  }
+}
+
 @keyframes splash {
   0% {
     transform: scale(0.74);
@@ -1792,5 +2661,31 @@ button {
   100% {
     transform: translateY(0) rotate(0) scale(1);
     opacity: 1;
+  }
+}
+
+@keyframes broadcast-toast {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -8px) scale(0.98);
+  }
+  12%,
+  78% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -8px) scale(0.98);
+  }
+}
+
+@keyframes broadcast-marquee {
+  0%,
+  16% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-18%);
   }
 }

@@ -38,7 +38,7 @@ const pool = new Pool({
 const app = express();
 
 app.use(cors({ origin: process.env.CORS_ORIGIN || true }));
-app.use(express.json({ limit: '32kb' }));
+app.use(express.json({ limit: '256kb' }));
 
 const districts = [
   '越秀区',
@@ -57,10 +57,66 @@ const districts = [
 const broadcastRarities = new Set(['legendary', 'epic', 'mutant', 'king']);
 
 const isValidDate = (value) => /^\d{4}-\d{2}-\d{2}$/.test(value);
+const normalizePlayerId = (value) => (typeof value === 'string' ? value.trim().slice(0, 32) : '');
+const isObject = (value) => value && typeof value === 'object' && !Array.isArray(value);
 
 app.get('/api/health', async (_request, response) => {
   await pool.query('select 1');
   response.json({ ok: true, storage: 'postgresql' });
+});
+
+app.get('/api/players/:playerId/save', async (request, response) => {
+  const playerId = normalizePlayerId(request.params.playerId);
+  if (!playerId) {
+    response.status(400).json({ error: 'invalid_player_id' });
+    return;
+  }
+
+  const result = await pool.query(
+    `
+      select player_state, codex, updated_at
+      from player_saves
+      where player_id = $1
+    `,
+    [playerId],
+  );
+
+  const save = result.rows[0];
+  response.json(save ? {
+    player: save.player_state,
+    codex: save.codex ?? {},
+    updatedAt: save.updated_at,
+  } : null);
+});
+
+app.put('/api/players/:playerId/save', async (request, response) => {
+  const playerId = normalizePlayerId(request.params.playerId);
+  const { player, codex } = request.body ?? {};
+
+  if (
+    !playerId ||
+    !isObject(player) ||
+    player.playerId !== playerId ||
+    !isObject(codex)
+  ) {
+    response.status(400).json({ error: 'invalid_player_save_payload' });
+    return;
+  }
+
+  await pool.query(
+    `
+      insert into player_saves (player_id, player_state, codex, updated_at)
+      values ($1, $2::jsonb, $3::jsonb, now())
+      on conflict (player_id)
+      do update set
+        player_state = excluded.player_state,
+        codex = excluded.codex,
+        updated_at = now()
+    `,
+    [playerId, JSON.stringify(player), JSON.stringify(codex)],
+  );
+
+  response.json({ ok: true });
 });
 
 app.get('/api/leaderboard/districts', async (request, response) => {

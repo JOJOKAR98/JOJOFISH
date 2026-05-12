@@ -1,12 +1,12 @@
-# JOJOFISH.COM MVP
+﻿# JOJOFISH.COM MVP
 
 ## Version
 
-Current release: v1.0.0. Future releases must bump `package.json` and `package-lock.json` before pushing.
+Current release: v1.0.1. Future releases must bump `package.json` and `package-lock.json` before pushing.
 
-## PostgreSQL leaderboard
+## PostgreSQL storage
 
-The regional leaderboard, player leaderboard modes, and server-wide broadcasts use a Node API plus PostgreSQL. The browser never connects to PostgreSQL directly.
+The player save, fish codex, regional leaderboard, player leaderboard modes, and server-wide broadcasts use a Node API plus PostgreSQL. The browser never connects to PostgreSQL directly. Browser localStorage is only kept as a fallback cache and first-run migration source.
 
 ```bash
 psql "$DATABASE_URL" -f server/schema.sql
@@ -32,35 +32,27 @@ npm ci --omit=dev
 npm run server
 ```
 
-The API health check returns PostgreSQL status at `/api/health`. The Node server can also serve the built frontend from `dist/`, so one process can host both the app and the PostgreSQL API when Nginx proxies to it.
+The API health check returns PostgreSQL status at `/api/health`. Player saves are stored in `player_saves`; run `server/schema.sql` during deployment to create or update the table. The Node server can also serve the built frontend from `dist/`, so one process can host both the app and the PostgreSQL API when Nginx proxies to it.
 
 For GitHub Actions deployment, set the repository secret `DATABASE_URL`. Optional secrets are `PGSSL`, `CORS_ORIGIN`, and `PORT`. The workflow writes the server `.env` file and runs `server/schema.sql` during deployment.
 
-React + TypeScript + Tailwind CSS 单页小游戏原型。
-
-## 运行
+React + TypeScript + Tailwind CSS 鍗曢〉灏忔父鎴忓師鍨嬨€?
+## 杩愯
 
 ```bash
 npm install
 npm run dev
 ```
 
-## 已实现
+## 宸插疄鐜?
+- 鎶涚銆? 鍒?3 绉掔瓑寰呴奔璁€?0 绉掓媺鎵皬娓告垙
+- 寮犲姏鏉°€佸畨鍏ㄥ尯銆佸嵄闄╁尯銆佹柇绾垮拰浣庡紶鍔涢€冭窇
+- 鏀剁嚎銆佹斁绾裤€佸乏鎺с€佸彸鎺с€佺ǔ浣忔柟鍚戜簨浠?- 鏅€氶奔銆佺█鏈夐奔銆佹繁娴峰紓绉嶃€佹瘡鏃ラ殣钘忛奔鐜?- 寮傚父浜嬩欢銆佺壒娈婃捣鍩熴€侀噾甯併€佷綋鍔涖€佸垢杩愬姞鎴?- 楸肩璐拱鍜岃澶?- 鐪佷唤閫夋嫨銆佹ā鎷熸帓琛屾銆佸叏鏈嶅箍鎾?- 妯℃嫙骞垮憡鎭㈠浣撳姏銆佹瘡鏃ュ垢杩愩€佸け璐ュ悗浣庨澶嶆椿
+- PostgreSQL save, with localStorage kept only as an offline fallback.
 
-- 抛竿、1 到 3 秒等待鱼讯、10 秒拉扯小游戏
-- 张力条、安全区、危险区、断线和低张力逃跑
-- 收线、放线、左控、右控、稳住方向事件
-- 普通鱼、稀有鱼、深海异种、每日隐藏鱼王
-- 异常事件、特殊海域、金币、体力、幸运加成
-- 鱼竿购买和装备
-- 省份选择、模拟排行榜、全服广播
-- 模拟广告恢复体力、每日幸运、失败后低频复活
-- localStorage 存档
+## 缁撴瀯
 
-## 结构
-
-- `src/App.tsx`: 页面 UI、状态流转、拉扯小游戏循环
-- `src/data/gameData.ts`: 省份、鱼、鱼竿、海域、异常事件配置
-- `src/lib/game.ts`: 概率、每日鱼王、存档默认值、排行榜工具
-- `src/types.ts`: 核心类型
-- `src/index.css`: 海面、黑影、震动、水花、金币反馈
+- `src/App.tsx`: 椤甸潰 UI銆佺姸鎬佹祦杞€佹媺鎵皬娓告垙寰幆
+- `src/data/gameData.ts`: 鐪佷唤銆侀奔銆侀奔绔裤€佹捣鍩熴€佸紓甯镐簨浠堕厤缃?- `src/lib/game.ts`: 姒傜巼銆佹瘡鏃ラ奔鐜嬨€佸瓨妗ｉ粯璁ゅ€笺€佹帓琛屾宸ュ叿
+- `src/types.ts`: 鏍稿績绫诲瀷
+- `src/index.css`: 娴烽潰銆侀粦褰便€侀渿鍔ㄣ€佹按鑺便€侀噾甯佸弽棣?
