@@ -108,71 +108,134 @@ jobs:
           ssh -i ~/.ssh/jojofish_deploy_key -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
             "test -f '$DEPLOY_PATH/index.html' && test -f '$DEPLOY_PATH/server/index.mjs' && find '$DEPLOY_PATH' -type d -exec chmod 755 {} + && find '$DEPLOY_PATH' -type f -exec chmod 644 {} +"
 
-      - name: Restart API server
+      - name: Patch live Feishu callback
         if: steps.deploy_config.outputs.ready == 'true'
         run: |
           ssh -i ~/.ssh/jojofish_deploy_key -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
-            "DEPLOY_PATH='$DEPLOY_PATH' PORT='$PORT' bash -s" <<'EOF'
+            "PORT='$PORT' bash -s" <<'EOF'
           set -e
-          cd "$DEPLOY_PATH"
           port="${PORT:-8787}"
+          node --input-type=module <<'NODE'
+          import { spawn, spawnSync } from 'node:child_process';
+          import fs from 'node:fs';
 
-          echo "Current Node processes:"
-          ps -eo pid,ppid,comm,args | grep -E 'node|pm2|jojofish' | grep -v grep || true
-          echo "Live jojofish API files:"
-          ls -la /opt/jojofish-api || true
-          if [ -f /opt/jojofish-api/index.mjs ]; then
-            sed -n '1,220p' /opt/jojofish-api/index.mjs || true
-          fi
-          echo "Port $port listeners:"
-          if command -v lsof >/dev/null 2>&1; then
-            lsof -nP -iTCP:"$port" -sTCP:LISTEN || true
-          fi
-          if command -v ss >/dev/null 2>&1; then
-            ss -ltnp "sport = :$port" || true
-          fi
-          if command -v fuser >/dev/null 2>&1; then
-            fuser -v "$port/tcp" || true
-          fi
+          const apiDir = '/opt/jojofish-api';
+          const apiFile = `${apiDir}/index.mjs`;
+          let text = fs.readFileSync(apiFile, 'utf8');
 
-          pids=""
-          if command -v lsof >/dev/null 2>&1; then
-            pids="$(lsof -ti tcp:"$port" || true)"
-          elif command -v ss >/dev/null 2>&1; then
-            pids="$(ss -ltnp "sport = :$port" 2>/dev/null | sed -n 's/.*pid=\([0-9][0-9]*\).*/\1/p' | sort -u || true)"
-          elif command -v fuser >/dev/null 2>&1; then
-            pids="$(fuser "$port/tcp" 2>/dev/null || true)"
-          fi
+          if (!text.includes("import crypto from 'node:crypto';")) {
+            text = text.replace("import cors from 'cors';", "import crypto from 'node:crypto';\nimport cors from 'cors';");
+          }
 
-          if command -v pm2 >/dev/null 2>&1; then
-            pm2 delete jojofish jojofish-api 2>/dev/null || true
-            pm2 delete all 2>/dev/null || true
-          fi
+          if (!text.includes("app.post('/api/feishu/events'")) {
+            const route = `
+          const decryptFeishuPayload = (encrypt) => {
+            if (!process.env.FEISHU_ENCRYPT_KEY) {
+              throw new Error('FEISHU_ENCRYPT_KEY is required for encrypted callbacks');
+            }
 
-          if [ -n "$pids" ]; then
-            kill $pids || true
-            sleep 1
-          fi
+            const key = crypto.createHash('sha256').update(process.env.FEISHU_ENCRYPT_KEY).digest();
+            const encrypted = Buffer.from(encrypt, 'base64');
+            const iv = encrypted.subarray(0, 16);
+            const ciphertext = encrypted.subarray(16);
+            const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
+            const decrypted = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+            return JSON.parse(decrypted.toString('utf8'));
+          };
 
-          pkill -f "$DEPLOY_PATH/server/index.mjs" 2>/dev/null || true
-          pkill -f "node server/index.mjs" 2>/dev/null || true
-          if command -v fuser >/dev/null 2>&1; then
-            fuser -k "$port/tcp" 2>/dev/null || true
-            sleep 1
-          fi
+          const getFeishuEventBody = (body) => {
+            if (body?.encrypt) return decryptFeishuPayload(body.encrypt);
+            return body ?? {};
+          };
 
-          if command -v pm2 >/dev/null 2>&1; then
-            pm2 start "$DEPLOY_PATH/server/index.mjs" --name jojofish --cwd "$DEPLOY_PATH" --update-env
-            pm2 save || true
-          elif systemctl --user status jojofish >/dev/null 2>&1; then
-            systemctl --user restart jojofish
-          else
-            nohup node "$DEPLOY_PATH/server/index.mjs" > "$DEPLOY_PATH/server.log" 2>&1 &
-          fi
+          const verifyFeishuCallback = (body) => {
+            const token = process.env.FEISHU_VERIFICATION_TOKEN;
+            if (!token) return true;
+            return body?.token === token || body?.header?.token === token;
+          };
 
+          app.post('/api/feishu/events', (request, response, next) => {
+            try {
+              const body = getFeishuEventBody(request.body);
+
+              if (!verifyFeishuCallback(body)) {
+                response.status(401).json({ error: 'invalid_verification_token' });
+                return;
+              }
+
+              if (body.type === 'url_verification') {
+                response.json({ challenge: body.challenge });
+                return;
+              }
+
+              response.json({ ok: true });
+            } catch (error) {
+              next(error);
+            }
+          });
+
+          `;
+
+            const marker = "app.use((error, _request, response, _next) => {";
+            if (!text.includes(marker)) {
+              throw new Error('Could not find Express error handler insertion point');
+            }
+
+            fs.copyFileSync(apiFile, `${apiFile}.bak-${Date.now()}`);
+            text = text.replace(marker, `${route}${marker}`);
+            fs.writeFileSync(apiFile, text);
+          }
+
+          let env = { ...process.env };
+          let pids = [];
+          try {
+            pids = spawnSyncText('pgrep', ['-f', apiFile])
+              .split(/\s+/)
+              .filter(Boolean)
+              .filter((pid) => pid !== String(process.pid));
+          } catch {
+            pids = [];
+          }
+
+          const livePid = pids[0];
+          if (livePid) {
+            try {
+              const rawEnv = fs.readFileSync(`/proc/${livePid}/environ`, 'utf8');
+              for (const entry of rawEnv.split('\0')) {
+                const separator = entry.indexOf('=');
+                if (separator > 0) env[entry.slice(0, separator)] = entry.slice(separator + 1);
+              }
+            } catch {
+              // Keep the SSH environment when procfs is not readable.
+            }
+
+            for (const pid of pids) {
+              try {
+                process.kill(Number(pid), 'SIGTERM');
+              } catch {
+                // Process may have already exited.
+              }
+            }
+          }
+
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+
+          const log = fs.openSync(`${apiDir}/server.log`, 'a');
+          const child = spawn('/usr/local/bin/node', [apiFile], {
+            cwd: apiDir,
+            detached: true,
+            env,
+            stdio: ['ignore', log, log],
+          });
+          child.unref();
+
+          function spawnSyncText(command, args) {
+            const result = spawnSync(command, args, { encoding: 'utf8' });
+            if (result.status !== 0) return '';
+            return result.stdout.trim();
+          }
+          NODE
           sleep 2
-          echo "Node processes after restart:"
-          ps -eo pid,ppid,comm,args | grep -E 'node|pm2|jojofish' | grep -v grep || true
           curl -fsS "http://127.0.0.1:$port/api/health"
           curl -fsS -X POST "http://127.0.0.1:$port/api/feishu/events" -H "Content-Type: application/json" -d '{"type":"url_verification","challenge":"deploy_check"}'
           EOF
