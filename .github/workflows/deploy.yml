@@ -119,6 +119,11 @@ jobs:
 
           echo "Current Node processes:"
           ps -eo pid,ppid,comm,args | grep -E 'node|pm2|jojofish' | grep -v grep || true
+          echo "Live jojofish API files:"
+          ls -la /opt/jojofish-api || true
+          if [ -f /opt/jojofish-api/index.mjs ]; then
+            sed -n '1,220p' /opt/jojofish-api/index.mjs || true
+          fi
           echo "Port $port listeners:"
           if command -v lsof >/dev/null 2>&1; then
             lsof -nP -iTCP:"$port" -sTCP:LISTEN || true
