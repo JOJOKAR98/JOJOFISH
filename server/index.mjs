@@ -29,14 +29,12 @@ const port = Number(process.env.PORT || 8787);
 const databaseUrl = process.env.DATABASE_URL;
 const feishuBotEnabled = Boolean(process.env.FEISHU_APP_ID && process.env.FEISHU_APP_SECRET && process.env.OPENAI_API_KEY);
 
-if (!databaseUrl) {
-  throw new Error('DATABASE_URL is required');
-}
-
-const pool = new Pool({
-  connectionString: databaseUrl,
-  ssl: process.env.PGSSL === 'true' ? { rejectUnauthorized: false } : undefined,
-});
+const pool = databaseUrl
+  ? new Pool({
+      connectionString: databaseUrl,
+      ssl: process.env.PGSSL === 'true' ? { rejectUnauthorized: false } : undefined,
+    })
+  : null;
 
 const app = express();
 
@@ -148,6 +146,21 @@ const getFeishuMessageText = (message) => {
   }
 };
 
+app.use((request, response, next) => {
+  const databaseOptionalPaths = new Set([
+    '/api/health',
+    '/feishu/events',
+    '/api/feishu/events',
+  ]);
+
+  if (!pool && request.path.startsWith('/api/') && !databaseOptionalPaths.has(request.path)) {
+    response.status(503).json({ error: 'database_not_configured' });
+    return;
+  }
+
+  next();
+});
+
 const askFeishuOpenAI = async (conversationKey, userText) => {
   if (!openai) return '机器人已连通，但服务器还没有配置 OPENAI_API_KEY / FEISHU_APP_ID / FEISHU_APP_SECRET。';
 
@@ -170,6 +183,11 @@ const askFeishuOpenAI = async (conversationKey, userText) => {
 };
 
 app.get('/api/health', async (_request, response) => {
+  if (!pool) {
+    response.json({ ok: true, storage: 'not_configured' });
+    return;
+  }
+
   await pool.query('select 1');
   response.json({ ok: true, storage: 'postgresql' });
 });
