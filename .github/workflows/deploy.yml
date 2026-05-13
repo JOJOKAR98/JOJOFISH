@@ -117,33 +117,32 @@ jobs:
           cd "$DEPLOY_PATH"
           port="${PORT:-8787}"
 
+          pids=""
+          if command -v lsof >/dev/null 2>&1; then
+            pids="$(lsof -ti tcp:"$port" || true)"
+          elif command -v ss >/dev/null 2>&1; then
+            pids="$(ss -ltnp "sport = :$port" 2>/dev/null | sed -n 's/.*pid=\([0-9][0-9]*\).*/\1/p' | sort -u || true)"
+          fi
+
           if command -v pm2 >/dev/null 2>&1; then
-            if pm2 describe jojofish >/dev/null 2>&1; then
-              pm2 restart jojofish --update-env
-            elif pm2 describe jojofish-api >/dev/null 2>&1; then
-              pm2 restart jojofish-api --update-env
-            else
-              pm2 start server/index.mjs --name jojofish --update-env
-            fi
+            pm2 delete jojofish jojofish-api 2>/dev/null || true
+          fi
+
+          if [ -n "$pids" ]; then
+            kill $pids || true
+            sleep 1
+          fi
+
+          if command -v pm2 >/dev/null 2>&1; then
+            pm2 start "$DEPLOY_PATH/server/index.mjs" --name jojofish --cwd "$DEPLOY_PATH" --update-env
             pm2 save || true
           elif systemctl --user status jojofish >/dev/null 2>&1; then
             systemctl --user restart jojofish
           else
-            pids=""
-            if command -v lsof >/dev/null 2>&1; then
-              pids="$(lsof -ti tcp:"$port" || true)"
-            elif command -v ss >/dev/null 2>&1; then
-              pids="$(ss -ltnp "sport = :$port" 2>/dev/null | sed -n 's/.*pid=\([0-9][0-9]*\).*/\1/p' | sort -u || true)"
-            fi
-
-            if [ -n "$pids" ]; then
-              kill $pids || true
-              sleep 1
-            fi
-
-            nohup node server/index.mjs > server.log 2>&1 &
+            nohup node "$DEPLOY_PATH/server/index.mjs" > "$DEPLOY_PATH/server.log" 2>&1 &
           fi
 
           sleep 2
           curl -fsS "http://127.0.0.1:$port/api/health"
+          curl -fsS -X POST "http://127.0.0.1:$port/api/feishu/events" -H "Content-Type: application/json" -d '{"type":"url_verification","challenge":"deploy_check"}'
           EOF
