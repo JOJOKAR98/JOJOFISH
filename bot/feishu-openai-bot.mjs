@@ -1,6 +1,28 @@
 import crypto from 'node:crypto';
 import express from 'express';
+import { existsSync, readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import OpenAI from 'openai';
+
+const botDir = path.dirname(fileURLToPath(import.meta.url));
+const envPaths = [
+  path.resolve(botDir, '../.env.bot'),
+  path.resolve(botDir, '../.env'),
+];
+
+for (const envPath of envPaths) {
+  if (!existsSync(envPath)) continue;
+  for (const line of readFileSync(envPath, 'utf8').split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const separatorIndex = trimmed.indexOf('=');
+    if (separatorIndex <= 0) continue;
+    const key = trimmed.slice(0, separatorIndex).trim();
+    const value = trimmed.slice(separatorIndex + 1).trim().replace(/^['"]|['"]$/g, '');
+    if (!(key in process.env)) process.env[key] = value;
+  }
+}
 
 const {
   FEISHU_APP_ID,

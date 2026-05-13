@@ -22,10 +22,10 @@ It is a bridge for chat and task intake. It does not directly control a Codex de
 Set the event request URL to:
 
 ```text
-https://YOUR_DOMAIN/feishu/events
+https://YOUR_DOMAIN/api/feishu/events
 ```
 
-For local testing, expose the bot port with a tunnel such as Cloudflare Tunnel or ngrok, then use the public HTTPS URL.
+The production API already exposes `/api/feishu/events`. If you choose the standalone bot process instead, expose `/feishu/events` through Nginx as shown below.
 
 ## 2. Environment Variables
 
@@ -69,6 +69,8 @@ location /feishu/ {
 ```
 
 For Feishu to call the bot, the URL must be reachable over HTTPS.
+
+When the GitHub Actions deploy workflow runs, it writes `.env.bot`, starts `bot/feishu-openai-bot.mjs` on `BOT_PORT`, and verifies `/health` if `FEISHU_APP_ID`, `FEISHU_APP_SECRET`, and `OPENAI_API_KEY` are configured as repository secrets.
 
 ## 5. Next Tooling Ideas
 

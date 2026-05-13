@@ -25,6 +25,13 @@ jobs:
       PGSSL: ${{ secrets.PGSSL || 'false' }}
       CORS_ORIGIN: ${{ secrets.CORS_ORIGIN || 'true' }}
       PORT: ${{ secrets.PORT || '8787' }}
+      FEISHU_APP_ID: ${{ secrets.FEISHU_APP_ID }}
+      FEISHU_APP_SECRET: ${{ secrets.FEISHU_APP_SECRET }}
+      FEISHU_VERIFICATION_TOKEN: ${{ secrets.FEISHU_VERIFICATION_TOKEN }}
+      FEISHU_ENCRYPT_KEY: ${{ secrets.FEISHU_ENCRYPT_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      OPENAI_MODEL: ${{ secrets.OPENAI_MODEL || 'gpt-4.1-mini' }}
+      BOT_PORT: ${{ secrets.BOT_PORT || '8790' }}
    
     steps:
       - name: Check out repository
@@ -78,7 +85,7 @@ jobs:
             dist/ "$SSH_USER@$SSH_HOST:$DEPLOY_PATH/dist/"
           rsync -az \
             -e "ssh -i ~/.ssh/jojofish_deploy_key -p $SSH_PORT" \
-            server package.json package-lock.json .env.example "$SSH_USER@$SSH_HOST:$DEPLOY_PATH/"
+            server bot package.json package-lock.json .env.example "$SSH_USER@$SSH_HOST:$DEPLOY_PATH/"
 
       - name: Install API dependencies
         if: steps.deploy_config.outputs.ready == 'true'
@@ -89,24 +96,68 @@ jobs:
       - name: Configure PostgreSQL API
         if: steps.deploy_config.outputs.ready == 'true'
         run: |
+          DB_URL_Q=$(printf '%q' "$DATABASE_URL")
+          PGSSL_Q=$(printf '%q' "$PGSSL")
+          CORS_Q=$(printf '%q' "$CORS_ORIGIN")
+          PORT_Q=$(printf '%q' "$PORT")
+          FEISHU_APP_ID_Q=$(printf '%q' "$FEISHU_APP_ID")
+          FEISHU_APP_SECRET_Q=$(printf '%q' "$FEISHU_APP_SECRET")
+          FEISHU_VERIFICATION_TOKEN_Q=$(printf '%q' "$FEISHU_VERIFICATION_TOKEN")
+          FEISHU_ENCRYPT_KEY_Q=$(printf '%q' "$FEISHU_ENCRYPT_KEY")
+          OPENAI_API_KEY_Q=$(printf '%q' "$OPENAI_API_KEY")
+          OPENAI_MODEL_Q=$(printf '%q' "$OPENAI_MODEL")
+
+          ssh -i ~/.ssh/jojofish_deploy_key -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
+            "cd '$DEPLOY_PATH' && printf 'DATABASE_URL=%s\nPGSSL=%s\nCORS_ORIGIN=%s\nPORT=%s\nFEISHU_APP_ID=%s\nFEISHU_APP_SECRET=%s\nFEISHU_VERIFICATION_TOKEN=%s\nFEISHU_ENCRYPT_KEY=%s\nOPENAI_API_KEY=%s\nOPENAI_MODEL=%s\n' $DB_URL_Q $PGSSL_Q $CORS_Q $PORT_Q $FEISHU_APP_ID_Q $FEISHU_APP_SECRET_Q $FEISHU_VERIFICATION_TOKEN_Q $FEISHU_ENCRYPT_KEY_Q $OPENAI_API_KEY_Q $OPENAI_MODEL_Q > .env && chmod 600 .env"
+
           if [ -z "$DATABASE_URL" ]; then
             echo "::notice::DATABASE_URL secret is not set. Configure it so the API can store leaderboards and broadcasts in PostgreSQL."
             exit 0
           fi
 
-          DB_URL_Q=$(printf '%q' "$DATABASE_URL")
-          PGSSL_Q=$(printf '%q' "$PGSSL")
-          CORS_Q=$(printf '%q' "$CORS_ORIGIN")
-          PORT_Q=$(printf '%q' "$PORT")
-
           ssh -i ~/.ssh/jojofish_deploy_key -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
-            "cd '$DEPLOY_PATH' && printf 'DATABASE_URL=%s\nPGSSL=%s\nCORS_ORIGIN=%s\nPORT=%s\n' $DB_URL_Q $PGSSL_Q $CORS_Q $PORT_Q > .env && chmod 600 .env && DATABASE_URL=$DB_URL_Q psql \"\$DATABASE_URL\" -f server/schema.sql"
+            "cd '$DEPLOY_PATH' && DATABASE_URL=$DB_URL_Q psql \"\$DATABASE_URL\" -f server/schema.sql"
 
       - name: Verify uploaded files
         if: steps.deploy_config.outputs.ready == 'true'
         run: |
           ssh -i ~/.ssh/jojofish_deploy_key -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
-            "test -f '$DEPLOY_PATH/index.html' && test -f '$DEPLOY_PATH/server/index.mjs' && find '$DEPLOY_PATH' -type d -exec chmod 755 {} + && find '$DEPLOY_PATH' -type f -exec chmod 644 {} +"
+            "test -f '$DEPLOY_PATH/index.html' && test -f '$DEPLOY_PATH/server/index.mjs' && test -f '$DEPLOY_PATH/bot/feishu-openai-bot.mjs' && find '$DEPLOY_PATH' -type d -exec chmod 755 {} + && find '$DEPLOY_PATH' -type f -exec chmod 644 {} + && [ ! -f '$DEPLOY_PATH/.env' ] || chmod 600 '$DEPLOY_PATH/.env'"
+
+      - name: Configure Feishu bot
+        if: steps.deploy_config.outputs.ready == 'true'
+        run: |
+          if [ -z "$FEISHU_APP_ID" ] || [ -z "$FEISHU_APP_SECRET" ] || [ -z "$OPENAI_API_KEY" ]; then
+            echo "::notice::Feishu bot secrets are incomplete. Set FEISHU_APP_ID, FEISHU_APP_SECRET, and OPENAI_API_KEY to start the standalone bot."
+            exit 0
+          fi
+
+          FEISHU_APP_ID_Q=$(printf '%q' "$FEISHU_APP_ID")
+          FEISHU_APP_SECRET_Q=$(printf '%q' "$FEISHU_APP_SECRET")
+          FEISHU_VERIFICATION_TOKEN_Q=$(printf '%q' "$FEISHU_VERIFICATION_TOKEN")
+          FEISHU_ENCRYPT_KEY_Q=$(printf '%q' "$FEISHU_ENCRYPT_KEY")
+          OPENAI_API_KEY_Q=$(printf '%q' "$OPENAI_API_KEY")
+          OPENAI_MODEL_Q=$(printf '%q' "$OPENAI_MODEL")
+          BOT_PORT_Q=$(printf '%q' "$BOT_PORT")
+
+          ssh -i ~/.ssh/jojofish_deploy_key -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
+            "cd '$DEPLOY_PATH' && printf 'FEISHU_APP_ID=%s\nFEISHU_APP_SECRET=%s\nFEISHU_VERIFICATION_TOKEN=%s\nFEISHU_ENCRYPT_KEY=%s\nOPENAI_API_KEY=%s\nOPENAI_MODEL=%s\nBOT_PORT=%s\n' $FEISHU_APP_ID_Q $FEISHU_APP_SECRET_Q $FEISHU_VERIFICATION_TOKEN_Q $FEISHU_ENCRYPT_KEY_Q $OPENAI_API_KEY_Q $OPENAI_MODEL_Q $BOT_PORT_Q > .env.bot && chmod 600 .env.bot"
+
+          ssh -i ~/.ssh/jojofish_deploy_key -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
+            "DEPLOY_PATH='$DEPLOY_PATH' BOT_PORT='$BOT_PORT' bash -s" <<'EOF'
+          set -e
+          cd "$DEPLOY_PATH"
+
+          pids="$(pgrep -f "$DEPLOY_PATH/bot/feishu-openai-bot.mjs" || true)"
+          if [ -n "$pids" ]; then
+            kill $pids || true
+            sleep 1
+          fi
+
+          nohup node "$DEPLOY_PATH/bot/feishu-openai-bot.mjs" >> "$DEPLOY_PATH/bot/feishu-bot.log" 2>&1 &
+          sleep 2
+          curl -fsS "http://127.0.0.1:${BOT_PORT:-8790}/health"
+          EOF
 
       - name: Patch live Feishu callback
         if: steps.deploy_config.outputs.ready == 'true'
