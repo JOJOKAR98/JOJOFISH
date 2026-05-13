@@ -83,15 +83,212 @@ button {
     0 0 14px rgba(190, 242, 100, 0.16);
 }
 
+.player-avatar-button {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+}
+
 .player-avatar-pixel {
   width: 48px;
   height: 62px;
+  position: relative;
   transform: translateY(8px) scale(0.62);
   transform-origin: 50% 100%;
 }
 
 .player-avatar-pixel .character-portrait {
   transform: none;
+}
+
+.player-avatar-image {
+  display: block;
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
+  image-rendering: pixelated;
+  transform: translateY(2px);
+  user-select: none;
+}
+
+.avatar-svg {
+  display: block;
+  width: 48px;
+  height: 62px;
+  overflow: visible;
+}
+
+.avatar-sprite,
+.avatar-sprite span {
+  position: absolute;
+  display: block;
+  image-rendering: pixelated;
+}
+
+.human-avatar,
+.animal-avatar {
+  inset: 0;
+}
+
+.avatar-head,
+.avatar-hair,
+.avatar-hat,
+.avatar-body,
+.avatar-leg,
+.animal-head,
+.animal-body,
+.animal-ear,
+.animal-face {
+  border: 2px solid #3f2a1d;
+}
+
+.avatar-head {
+  left: 14px;
+  top: 12px;
+  width: 20px;
+  height: 20px;
+  background: var(--skin);
+}
+
+.avatar-hair {
+  left: 10px;
+  top: 7px;
+  width: 28px;
+  height: 14px;
+  background: var(--hair);
+}
+
+.human-avatar-female .avatar-hair {
+  top: 8px;
+  height: 24px;
+  box-shadow:
+    -3px 8px 0 var(--hair),
+    3px 8px 0 var(--hair);
+}
+
+.avatar-hat {
+  left: 7px;
+  top: 2px;
+  width: 34px;
+  height: 9px;
+  background: var(--hat);
+  box-shadow: 7px -5px 0 var(--hat);
+}
+
+.human-avatar-female .avatar-hat {
+  width: 32px;
+  box-shadow:
+    5px -5px 0 var(--hat),
+    14px 0 0 var(--accent);
+}
+
+.avatar-body {
+  left: 11px;
+  top: 32px;
+  width: 26px;
+  height: 20px;
+  background: var(--shirt);
+  box-shadow: inset 9px 0 0 rgba(255, 255, 255, 0.18);
+}
+
+.avatar-leg {
+  top: 50px;
+  width: 11px;
+  height: 12px;
+  background: var(--accent);
+}
+
+.avatar-leg-a {
+  left: 12px;
+}
+
+.avatar-leg-b {
+  left: 25px;
+}
+
+.avatar-eye {
+  top: 21px;
+  width: 3px;
+  height: 3px;
+  background: #2f1d14;
+  z-index: 2;
+}
+
+.avatar-eye-a {
+  left: 18px;
+}
+
+.avatar-eye-b {
+  left: 27px;
+}
+
+.animal-ear {
+  top: 7px;
+  width: 12px;
+  height: 14px;
+  background: var(--hair);
+  transform: rotate(45deg);
+}
+
+.animal-ear-a {
+  left: 10px;
+}
+
+.animal-ear-b {
+  right: 10px;
+}
+
+.animal-head {
+  left: 9px;
+  top: 14px;
+  width: 30px;
+  height: 27px;
+  background: var(--skin);
+  box-shadow: inset 0 -6px 0 rgba(255, 255, 255, 0.22);
+}
+
+.animal-face {
+  left: 16px;
+  top: 29px;
+  width: 16px;
+  height: 10px;
+  background: var(--hat);
+  border-width: 1px;
+  z-index: 2;
+}
+
+.animal-body {
+  left: 12px;
+  top: 40px;
+  width: 24px;
+  height: 19px;
+  background: var(--shirt);
+}
+
+.animal-eye {
+  top: 24px;
+  width: 3px;
+  height: 3px;
+  background: #2f1d14;
+  z-index: 3;
+}
+
+.animal-eye-a {
+  left: 17px;
+}
+
+.animal-eye-b {
+  left: 28px;
+}
+
+.animal-nose {
+  left: 23px;
+  top: 33px;
+  width: 4px;
+  height: 3px;
+  background: var(--accent);
+  z-index: 3;
 }
 
 .energy-hud {
@@ -2688,4 +2885,727 @@ button {
   100% {
     transform: translateX(-18%);
   }
+}
+
+/* Calm UI pass: reduce visual noise while keeping the fishing-game personality. */
+.stardew-ui {
+  --calm-ink: #21313f;
+  --calm-panel: #f7f4e8;
+  --calm-panel-strong: #fff9e8;
+  --calm-sea-dark: #174860;
+  --calm-action: #f2c45c;
+  --calm-action-dark: #b97725;
+  --calm-shadow: rgba(20, 38, 48, 0.2);
+}
+
+body {
+  background:
+    linear-gradient(180deg, #9ed2df 0%, #c8dfaa 48%, #6da764 100%);
+}
+
+.stardew-ui .weird-phone,
+.stardew-ui .sea-zone-normal,
+.stardew-ui .sea-zone-black,
+.stardew-ui .sea-zone-rift,
+.stardew-ui .sea-zone-moon {
+  background:
+    linear-gradient(180deg, #8ec8dd 0 32%, #9fc978 32% 44%, #5f9c61 44% 50%, #3b97b1 50% 77%, #24647d 77% 100%) !important;
+  box-shadow:
+    0 0 0 1px rgba(33, 49, 63, 0.28),
+    0 18px 42px rgba(20, 38, 48, 0.28) !important;
+}
+
+.stardew-ui .backdrop-dusk,
+.stardew-ui .backdrop-moon,
+.stardew-ui .backdrop-storm,
+.stardew-ui .backdrop-quiet {
+  filter: saturate(0.82) contrast(0.92);
+}
+
+.stardew-ui .sea-sparks,
+.stardew-ui .distant-cloud,
+.stardew-ui .horizon-spark,
+.stardew-ui .bubble {
+  opacity: 0.18 !important;
+  animation: none !important;
+}
+
+.stardew-ui .near-wave,
+.stardew-ui .mid-wave,
+.stardew-ui .far-wave {
+  opacity: 0.42 !important;
+  animation-duration: 8s !important;
+}
+
+.stardew-ui .player-hud,
+.stardew-ui .energy-hud,
+.stardew-ui .pk-card,
+.stardew-ui .sea-glass,
+.stardew-ui .sea-panel,
+.stardew-ui .strong-panel:not(.timing-panel),
+.stardew-ui .bottom-sheet-panel,
+.stardew-ui .result-panel,
+.stardew-ui .broadcast-board,
+.stardew-ui .top-stat {
+  border: 2px solid rgba(33, 49, 63, 0.72) !important;
+  border-radius: 8px !important;
+  background: linear-gradient(180deg, var(--calm-panel-strong) 0%, var(--calm-panel) 100%) !important;
+  color: var(--calm-ink) !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.62),
+    0 4px 12px var(--calm-shadow) !important;
+  text-shadow: none !important;
+  backdrop-filter: none !important;
+}
+
+.stardew-ui .player-hud [class*="text-"],
+.stardew-ui .energy-hud [class*="text-"],
+.stardew-ui .pk-card [class*="text-"],
+.stardew-ui .strong-panel:not(.timing-panel) [class*="text-"],
+.stardew-ui .bottom-sheet-panel [class*="text-"],
+.stardew-ui .result-panel [class*="text-"],
+.stardew-ui .broadcast-board [class*="text-"],
+.stardew-ui .top-stat [class*="text-"] {
+  color: currentColor !important;
+  text-shadow: none !important;
+}
+
+.stardew-ui .player-avatar-wrap,
+.stardew-ui .district-select,
+.stardew-ui .location-button,
+.stardew-ui .luck-button,
+.stardew-ui .gear-shop-button,
+.stardew-ui .footer-tool-button,
+.stardew-ui .small-nav,
+.stardew-ui .shop-item,
+.stardew-ui .character-card,
+.stardew-ui .rank-row,
+.stardew-ui .rank-note,
+.stardew-ui .district-option,
+.stardew-ui .bottom-sheet-panel button,
+.stardew-ui .bottom-sheet-panel .grid > div,
+.stardew-ui .bottom-sheet-panel .space-y-2 > div,
+.stardew-ui .bottom-sheet-panel .space-y-3 > div {
+  border: 1px solid rgba(33, 49, 63, 0.38) !important;
+  border-radius: 8px !important;
+  background: rgba(255, 249, 232, 0.86) !important;
+  color: var(--calm-ink) !important;
+  box-shadow: 0 2px 7px rgba(20, 38, 48, 0.13) !important;
+  text-shadow: none !important;
+}
+
+.stardew-ui .hud-footer {
+  border-top: 1px solid rgba(33, 49, 63, 0.28) !important;
+  background: rgba(18, 51, 65, 0.82) !important;
+  box-shadow: 0 -8px 20px rgba(20, 38, 48, 0.18) !important;
+  backdrop-filter: blur(4px);
+}
+
+.stardew-ui .footer-gear-panel {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.stardew-ui .hud-footer .small-nav,
+.stardew-ui .hud-footer .footer-tool-button {
+  background: rgba(247, 244, 232, 0.92) !important;
+}
+
+.stardew-ui .cast-button,
+.stardew-ui .idle-cast-button {
+  border: 2px solid rgba(75, 58, 32, 0.85) !important;
+  border-radius: 999px !important;
+  background: linear-gradient(180deg, #f5d078 0%, var(--calm-action) 68%, var(--calm-action-dark) 100%) !important;
+  color: #21313f !important;
+  box-shadow: 0 6px 0 rgba(75, 58, 32, 0.72), 0 10px 18px rgba(20, 38, 48, 0.18) !important;
+  text-shadow: none !important;
+}
+
+.stardew-ui .timing-action-button {
+  border-color: rgba(19, 70, 88, 0.88) !important;
+  background: linear-gradient(180deg, #7ec7d8 0%, #3d91ab 100%) !important;
+  color: #f8fbf5 !important;
+  box-shadow: 0 5px 0 rgba(19, 70, 88, 0.72), 0 10px 16px rgba(20, 38, 48, 0.18) !important;
+}
+
+.stardew-ui .timing-panel {
+  border: 2px solid rgba(247, 244, 232, 0.8) !important;
+  border-radius: 8px !important;
+  background: linear-gradient(180deg, var(--calm-sea-dark) 0%, #102f40 100%) !important;
+  box-shadow: 0 5px 14px rgba(20, 38, 48, 0.3) !important;
+}
+
+.stardew-ui .timing-lane {
+  border: 1px solid rgba(247, 244, 232, 0.34) !important;
+  background:
+    linear-gradient(90deg, rgba(174, 73, 67, 0.62) 0 12%, transparent 12% 88%, rgba(174, 73, 67, 0.62) 88% 100%),
+    linear-gradient(180deg, #173a4e 0%, #0d2431 100%) !important;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08) !important;
+}
+
+.stardew-ui .timing-target {
+  border: 1px solid rgba(75, 58, 32, 0.42) !important;
+  background: linear-gradient(180deg, #f8db83 0%, #edb947 100%) !important;
+  box-shadow: 0 0 0 1px rgba(255, 249, 232, 0.3) !important;
+}
+
+.stardew-ui .timing-needle > span,
+.stardew-ui .timing-needle-cap {
+  box-shadow: none !important;
+}
+
+.stardew-ui .shadow-glow,
+.stardew-ui .shadow-gold,
+.stardew-ui [class*="shadow-glow"],
+.stardew-ui [class*="shadow-gold"],
+.stardew-ui [class*="shadow-2xl"] {
+  box-shadow: 0 4px 12px var(--calm-shadow) !important;
+}
+
+.stardew-ui .prize-fish-wrap {
+  border: 2px solid rgba(33, 49, 63, 0.5) !important;
+  border-radius: 8px !important;
+  background: linear-gradient(180deg, #8fc9d9, #4d9bb4) !important;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22), 0 3px 10px rgba(20, 38, 48, 0.16) !important;
+}
+
+.stardew-ui .boat-rim,
+.stardew-ui .boat-highlight,
+.stardew-ui .distant-island,
+.stardew-ui .underwater-shadow {
+  filter: saturate(0.72);
+  opacity: 0.72;
+}
+
+/* Balanced Stardew pass: bring back handcrafted wood/parchment charm without visual clutter. */
+.stardew-ui {
+  --farm-wood: #8b542d;
+  --farm-wood-dark: #5e351f;
+  --farm-wood-light: #bf7a3d;
+  --farm-paper: #fff0bc;
+  --farm-paper-deep: #e7b95f;
+  --farm-green: #77ad55;
+  --farm-blue: #2f86a8;
+  --farm-ink-balanced: #3b291d;
+  --farm-soft-shadow: rgba(68, 42, 25, 0.24);
+}
+
+body {
+  background:
+    linear-gradient(90deg, rgba(64, 106, 55, 0.1) 1px, transparent 1px),
+    linear-gradient(0deg, rgba(64, 106, 55, 0.1) 1px, transparent 1px),
+    linear-gradient(180deg, #98cde2 0%, #cfe19b 48%, #74ad5d 100%);
+  background-size: 24px 24px, 24px 24px, auto;
+}
+
+.stardew-ui .weird-phone,
+.stardew-ui .sea-zone-normal {
+  background:
+    linear-gradient(180deg, #88c8e0 0 31%, #b9d37c 31% 43%, #6eaa56 43% 50%, #39a2bf 50% 76%, #21617e 76% 100%) !important;
+}
+
+.stardew-ui .sea-zone-black,
+.stardew-ui .sea-black,
+.stardew-ui .sea-violet,
+.stardew-ui .sea-quiet {
+  background:
+    linear-gradient(180deg, #667f99 0 31%, #869b68 31% 43%, #526844 43% 50%, #2f6f8f 50% 76%, #183c54 76% 100%) !important;
+}
+
+.stardew-ui .sea-zone-rift {
+  background:
+    linear-gradient(180deg, #8aa9d8 0 31%, #a6bf70 31% 43%, #638e4b 43% 50%, #537fb8 50% 76%, #2d4b78 76% 100%) !important;
+}
+
+.stardew-ui .sea-zone-moon,
+.stardew-ui .sea-red {
+  background:
+    linear-gradient(180deg, #c9917e 0 31%, #b88758 31% 43%, #765331 43% 50%, #875f93 50% 76%, #3f2854 76% 100%) !important;
+}
+
+.stardew-ui .pixel-sky-grid {
+  opacity: 0.24 !important;
+}
+
+.stardew-ui .pixel-hills,
+.stardew-ui .pixel-field,
+.stardew-ui .pixel-reeds,
+.stardew-ui .sea-surface,
+.stardew-ui .current-ribbons {
+  opacity: 0.72 !important;
+  filter: saturate(0.9);
+}
+
+.stardew-ui .sea-sparks {
+  opacity: 0.32 !important;
+  animation: spark-drift 8s ease-in-out infinite alternate !important;
+  background-image:
+    radial-gradient(circle at 14% 18%, rgba(255, 242, 191, 0.58) 0 1px, transparent 2px),
+    radial-gradient(circle at 42% 52%, rgba(255, 212, 100, 0.48) 0 1px, transparent 2px),
+    radial-gradient(circle at 78% 28%, rgba(255, 242, 191, 0.5) 0 1px, transparent 2px) !important;
+}
+
+.stardew-ui .distant-cloud {
+  opacity: 0.28 !important;
+}
+
+.stardew-ui .near-wave,
+.stardew-ui .mid-wave,
+.stardew-ui .far-wave {
+  opacity: 0.56 !important;
+  animation-duration: 6.5s !important;
+}
+
+.stardew-ui .player-hud,
+.stardew-ui .energy-hud,
+.stardew-ui .pk-card,
+.stardew-ui .sea-glass,
+.stardew-ui .sea-panel,
+.stardew-ui .strong-panel:not(.timing-panel),
+.stardew-ui .bottom-sheet-panel,
+.stardew-ui .result-panel,
+.stardew-ui .broadcast-board,
+.stardew-ui .top-stat {
+  border: 3px solid var(--farm-ink-balanced) !important;
+  border-radius: 7px !important;
+  background:
+    repeating-linear-gradient(90deg, rgba(111, 70, 35, 0.07) 0 14px, transparent 14px 28px),
+    linear-gradient(180deg, var(--farm-paper) 0%, #f3cf7a 100%) !important;
+  color: var(--farm-ink-balanced) !important;
+  box-shadow:
+    inset 0 0 0 2px rgba(255, 248, 209, 0.52),
+    inset 0 -5px 0 rgba(124, 70, 38, 0.13),
+    0 4px 0 rgba(74, 47, 28, 0.72),
+    0 8px 14px var(--farm-soft-shadow) !important;
+}
+
+.stardew-ui .pk-card,
+.stardew-ui .player-hud,
+.stardew-ui .energy-hud {
+  background:
+    linear-gradient(180deg, rgba(255, 242, 191, 0.96), rgba(238, 192, 100, 0.96)),
+    repeating-linear-gradient(90deg, rgba(124, 70, 38, 0.08) 0 12px, transparent 12px 24px) !important;
+}
+
+.stardew-ui .hud-footer {
+  border-top: 3px solid var(--farm-ink-balanced) !important;
+  background:
+    repeating-linear-gradient(90deg, var(--farm-wood-dark) 0 18px, var(--farm-wood) 18px 42px, var(--farm-wood-light) 42px 46px),
+    linear-gradient(180deg, #a76434, #60341f) !important;
+  box-shadow:
+    inset 0 3px 0 rgba(255, 210, 136, 0.2),
+    0 -6px 18px rgba(45, 28, 18, 0.22) !important;
+}
+
+.stardew-ui .footer-gear-panel {
+  background:
+    linear-gradient(180deg, rgba(255, 236, 171, 0.72), rgba(174, 103, 48, 0.52)) !important;
+  border: 1px solid rgba(59, 41, 29, 0.28) !important;
+  border-radius: 10px !important;
+  box-shadow: inset 0 0 0 1px rgba(255, 242, 191, 0.28) !important;
+}
+
+.stardew-ui .player-avatar-wrap,
+.stardew-ui .district-select,
+.stardew-ui .location-button,
+.stardew-ui .luck-button,
+.stardew-ui .gear-shop-button,
+.stardew-ui .footer-tool-button,
+.stardew-ui .small-nav,
+.stardew-ui .shop-item,
+.stardew-ui .character-card,
+.stardew-ui .rank-row,
+.stardew-ui .rank-note,
+.stardew-ui .district-option,
+.stardew-ui .bottom-sheet-panel button,
+.stardew-ui .bottom-sheet-panel .grid > div,
+.stardew-ui .bottom-sheet-panel .space-y-2 > div,
+.stardew-ui .bottom-sheet-panel .space-y-3 > div {
+  border: 2px solid rgba(59, 41, 29, 0.78) !important;
+  border-radius: 6px !important;
+  background:
+    linear-gradient(180deg, #fff3c5 0%, #e8b964 100%) !important;
+  color: var(--farm-ink-balanced) !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 248, 209, 0.48),
+    0 3px 0 rgba(74, 47, 28, 0.58),
+    0 6px 10px rgba(68, 42, 25, 0.14) !important;
+}
+
+.stardew-ui .hud-footer .small-nav,
+.stardew-ui .hud-footer .footer-tool-button {
+  background:
+    linear-gradient(180deg, #fff2bf 0%, #e0a95a 100%) !important;
+}
+
+.stardew-ui .cast-button,
+.stardew-ui .idle-cast-button {
+  border: 3px solid var(--farm-ink-balanced) !important;
+  background:
+    linear-gradient(180deg, #ffe38c 0 16%, #f0b950 16% 74%, #bd722b 74% 100%) !important;
+  box-shadow:
+    inset 0 0 0 2px rgba(255, 242, 191, 0.44),
+    0 6px 0 #5e351f,
+    0 11px 18px rgba(68, 42, 25, 0.22) !important;
+}
+
+.stardew-ui .timing-action-button {
+  background:
+    linear-gradient(180deg, #4fb4cc 0%, #287b9b 100%) !important;
+  color: #fff7d1 !important;
+  box-shadow:
+    inset 0 0 0 2px rgba(255, 242, 191, 0.18),
+    0 5px 0 #16384d,
+    0 9px 14px rgba(22, 56, 77, 0.22) !important;
+}
+
+.stardew-ui .timing-panel {
+  border: 3px solid #fff2bf !important;
+  background:
+    repeating-linear-gradient(90deg, rgba(255, 242, 191, 0.06) 0 12px, transparent 12px 24px),
+    linear-gradient(180deg, #16435d 0%, #0e293b 100%) !important;
+  box-shadow:
+    inset 0 0 0 2px rgba(255, 212, 100, 0.18),
+    0 5px 0 #3b291d,
+    0 10px 16px rgba(22, 56, 77, 0.24) !important;
+}
+
+.stardew-ui .timing-target {
+  background:
+    linear-gradient(180deg, #fff2bf 0%, #ffd464 60%, #df963a 100%) !important;
+}
+
+.stardew-ui .timing-hit-counter span {
+  background: rgba(255, 242, 191, 0.92) !important;
+  color: var(--farm-ink-balanced) !important;
+}
+
+.stardew-ui .prize-fish-wrap {
+  background:
+    repeating-linear-gradient(0deg, rgba(255, 242, 191, 0.12) 0 6px, transparent 6px 18px),
+    linear-gradient(180deg, #65bfd0, #2d86ad) !important;
+}
+
+.stardew-ui .boat-rim,
+.stardew-ui .boat-highlight,
+.stardew-ui .distant-island,
+.stardew-ui .underwater-shadow {
+  filter: saturate(0.88);
+  opacity: 0.82;
+}
+
+/* Stripe reduction: keep functional danger/target zones, remove most decorative striping. */
+body {
+  background:
+    linear-gradient(180deg, #98cde2 0%, #cfe19b 48%, #74ad5d 100%);
+}
+
+.stardew-ui .pixel-sky-grid,
+.stardew-ui .pixel-field::before,
+.stardew-ui .pixel-field::after,
+.stardew-ui .current-ribbons,
+.stardew-ui .sea-glint {
+  opacity: 0.14 !important;
+}
+
+.stardew-ui .player-hud,
+.stardew-ui .energy-hud,
+.stardew-ui .pk-card,
+.stardew-ui .sea-glass,
+.stardew-ui .sea-panel,
+.stardew-ui .strong-panel:not(.timing-panel),
+.stardew-ui .bottom-sheet-panel,
+.stardew-ui .result-panel,
+.stardew-ui .broadcast-board,
+.stardew-ui .top-stat {
+  background:
+    linear-gradient(180deg, #fff2bf 0%, #f0c96f 100%) !important;
+}
+
+.stardew-ui .pk-card,
+.stardew-ui .player-hud,
+.stardew-ui .energy-hud {
+  background:
+    linear-gradient(180deg, rgba(255, 242, 191, 0.98), rgba(238, 192, 100, 0.98)) !important;
+}
+
+.stardew-ui .hud-footer {
+  background:
+    linear-gradient(180deg, #9b5d31 0%, #6d3d25 100%) !important;
+}
+
+.stardew-ui .footer-gear-panel {
+  background:
+    linear-gradient(180deg, rgba(255, 236, 171, 0.54), rgba(128, 73, 36, 0.3)) !important;
+}
+
+.stardew-ui .timing-panel {
+  background:
+    linear-gradient(180deg, #16435d 0%, #0e293b 100%) !important;
+}
+
+.stardew-ui .timing-lane {
+  background:
+    linear-gradient(90deg, rgba(174, 73, 67, 0.62) 0 12%, transparent 12% 88%, rgba(174, 73, 67, 0.62) 88% 100%),
+    linear-gradient(180deg, #173a4e 0%, #0d2431 100%) !important;
+}
+
+.stardew-ui .timing-target {
+  background:
+    linear-gradient(180deg, #fff2bf 0%, #ffd464 60%, #df963a 100%) !important;
+}
+
+.stardew-ui .prize-fish-wrap {
+  background:
+    linear-gradient(180deg, #65bfd0, #2d86ad) !important;
+}
+
+.stardew-ui .boat-rim {
+  background:
+    linear-gradient(180deg, #8b542d 0%, #5e351f 100%) !important;
+}
+
+.stardew-ui .boat-rim,
+.stardew-ui .boat-highlight {
+  opacity: 1 !important;
+  filter: none !important;
+}
+
+.stardew-ui .boat-rim {
+  background:
+    linear-gradient(180deg, #b16c38 0%, #8b542d 46%, #5e351f 100%) !important;
+}
+
+.stardew-ui .boat-highlight {
+  background: #d99a55 !important;
+}
+
+.stardew-ui .result-panel-body,
+.stardew-ui .bottom-sheet-body {
+  min-height: 0;
+  -webkit-overflow-scrolling: touch;
+}
+
+.stardew-ui .result-panel-footer,
+.stardew-ui .bottom-sheet-footer,
+.stardew-ui .bottom-sheet-header {
+  flex: 0 0 auto;
+  background:
+    linear-gradient(180deg, rgba(255, 242, 191, 0.2), rgba(128, 73, 36, 0.18)),
+    rgba(47, 29, 20, 0.36);
+  border-color: rgba(255, 242, 191, 0.24);
+}
+
+.stardew-ui .result-panel-footer,
+.stardew-ui .bottom-sheet-footer {
+  border-top: 2px solid rgba(255, 242, 191, 0.24);
+  box-shadow: 0 -6px 14px rgba(47, 29, 20, 0.18);
+}
+
+.stardew-ui .bottom-sheet-header {
+  border-bottom: 2px solid rgba(255, 242, 191, 0.2);
+}
+
+.stardew-ui .bottom-sheet-header > button {
+  display: none !important;
+}
+
+.stardew-ui .timing-lane {
+  height: 70px !important;
+  border: 3px solid #4b2c1a !important;
+  background:
+    linear-gradient(90deg, rgba(163, 58, 48, 0.74) 0 9%, transparent 9% 91%, rgba(163, 58, 48, 0.74) 91% 100%),
+    linear-gradient(180deg, #214e65 0%, #123346 46%, #0b2231 100%) !important;
+  box-shadow:
+    inset 0 0 0 2px rgba(255, 242, 191, 0.18),
+    0 4px 0 #2f1d14,
+    0 7px 12px rgba(47, 29, 20, 0.24) !important;
+}
+
+.stardew-ui .timing-lane-mid {
+  background: rgba(255, 247, 209, 0.24) !important;
+}
+
+.stardew-ui .timing-target {
+  pointer-events: none;
+}
+
+.stardew-ui .timing-target-effective {
+  border: 2px solid rgba(255, 247, 209, 0.76) !important;
+  background:
+    linear-gradient(180deg, rgba(255, 247, 209, 0.48), rgba(255, 212, 100, 0.48)) !important;
+  box-shadow:
+    inset 0 0 0 2px rgba(75, 44, 26, 0.32),
+    0 0 10px rgba(255, 212, 100, 0.22) !important;
+}
+
+.stardew-ui .timing-target-core {
+  pointer-events: none;
+  border: 2px solid #3b291d !important;
+  background:
+    linear-gradient(180deg, #fff2bf 0%, #ffd464 54%, #d68a32 100%) !important;
+  box-shadow:
+    inset 0 0 0 2px rgba(255, 247, 209, 0.5),
+    0 2px 0 rgba(47, 29, 20, 0.34) !important;
+}
+
+.stardew-ui .timing-target-label {
+  color: #3b291d !important;
+  letter-spacing: 0 !important;
+  text-shadow: 0 1px 0 rgba(255, 247, 209, 0.72) !important;
+}
+
+.stardew-ui .timing-needle {
+  width: 14px !important;
+  filter: drop-shadow(0 0 5px rgba(244, 63, 94, 0.58)) !important;
+}
+
+.stardew-ui .timing-needle > span:first-child {
+  width: 6px !important;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #fff7d1 0%, #ef4444 24%, #b91c1c 100%) !important;
+  box-shadow: 0 0 0 1px rgba(47, 29, 20, 0.45) !important;
+}
+
+.stardew-ui .timing-needle > span:nth-child(2) {
+  background: rgba(255, 255, 255, 0.76) !important;
+}
+
+.stardew-ui .timing-needle-cap {
+  border-left-width: 9px !important;
+  border-right-width: 9px !important;
+}
+
+.stardew-ui .rod-preview,
+.stardew-ui .bait-preview {
+  position: relative;
+  display: inline-block;
+  width: 34px;
+  height: 24px;
+  image-rendering: pixelated;
+}
+
+.stardew-ui .rod-preview::before {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 13px;
+  width: 27px;
+  height: 5px;
+  border: 1px solid #3b291d;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--rod-handle), var(--rod-mid) 52%, var(--rod-tip));
+  box-shadow:
+    0 0 8px color-mix(in srgb, var(--rod-glow) calc(var(--rod-glow-opacity) * 100%), transparent),
+    0 2px 0 rgba(59, 41, 29, 0.28);
+  transform: rotate(-28deg);
+  transform-origin: 8% 50%;
+}
+
+.stardew-ui .rod-preview::after {
+  content: "";
+  position: absolute;
+  left: 22px;
+  top: 4px;
+  width: 7px;
+  height: 7px;
+  border: 1px solid #3b291d;
+  border-radius: 999px;
+  background: var(--rod-tip);
+  box-shadow: 0 0 9px color-mix(in srgb, var(--rod-glow) calc(var(--rod-glow-opacity) * 100%), transparent);
+}
+
+.stardew-ui .rod-preview i {
+  position: absolute;
+  left: 6px;
+  top: 15px;
+  width: 8px;
+  height: 8px;
+  border: 2px solid #3b291d;
+  border-radius: 999px;
+  background: var(--rod-mid);
+}
+
+.stardew-ui .bait-preview::before {
+  content: "";
+  position: absolute;
+  left: 8px;
+  top: 3px;
+  width: 17px;
+  height: 17px;
+  border: 2px solid var(--bait-ring);
+  border-radius: 999px;
+  background: linear-gradient(180deg, var(--bait-ring) 0 42%, var(--bait-core) 42% 100%);
+  box-shadow:
+    0 0 10px color-mix(in srgb, var(--bait-glow) calc(var(--bait-glow-opacity) * 100%), transparent),
+    0 2px 0 rgba(59, 41, 29, 0.24);
+}
+
+.stardew-ui .bait-preview::after {
+  content: "";
+  position: absolute;
+  left: 14px;
+  top: 8px;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--bait-cap);
+  box-shadow: 0 0 7px color-mix(in srgb, var(--bait-glow) calc(var(--bait-glow-opacity) * 100%), transparent);
+}
+
+.stardew-ui .bait-preview i {
+  position: absolute;
+  left: 15px;
+  top: 0;
+  width: 2px;
+  height: 7px;
+  background: var(--bait-ring);
+}
+
+.stardew-ui .player-avatar-button {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.stardew-ui .player-avatar-wrap {
+  overflow: hidden;
+  border: 2px solid #3f2a1d !important;
+  border-radius: 8px !important;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--avatar-bg) 82%, #fff2bf), var(--avatar-bg)) !important;
+  box-shadow:
+    inset 0 0 0 2px rgba(255, 247, 209, 0.38),
+    0 2px 0 rgba(63, 42, 29, 0.52) !important;
+}
+
+.stardew-ui .player-avatar-image {
+  display: block !important;
+  width: 36px !important;
+  height: 36px !important;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+
+.stardew-ui .avatar-choice {
+  min-width: 0;
+  padding: 0.45rem 0.3rem !important;
+  text-align: center;
+}
+
+.stardew-ui .avatar-choice .player-avatar-wrap {
+  margin: 0 auto;
+}
+
+.stardew-ui .avatar-choice-active {
+  background:
+    linear-gradient(180deg, #dff39a 0%, #8ccf5d 100%) !important;
+}
+
+.stardew-ui .avatar-picker-section {
+  border: 2px solid rgba(63, 42, 29, 0.38);
+  border-radius: 8px;
+  padding: 0.55rem;
+  background: rgba(255, 247, 209, 0.35);
 }

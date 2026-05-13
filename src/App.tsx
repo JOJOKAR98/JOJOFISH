@@ -33,13 +33,119 @@ const SAVE_KEY = 'deep-sea-province-fishing-save-v2';
 const CODEX_KEY = 'deep-sea-fish-codex-v1';
 const APP_VERSION = packageJson.version;
 
-type Sheet = 'shopRod' | 'shopBait' | 'character' | 'rankDistrict' | 'rankPlayer' | 'zone' | 'district' | 'codex' | null;
+type Sheet = 'shopRod' | 'shopBait' | 'character' | 'avatar' | 'rankDistrict' | 'rankPlayer' | 'zone' | 'district' | 'codex' | null;
 type PlayerRankMode = 'dailyWeight' | 'dailyCoins' | 'totalCasts' | 'totalCoins';
 type TugFeedback = 'soft' | 'bite' | 'hit' | 'miss';
+type AvatarKind = 'male' | 'female' | 'animal';
+
+type PlayerAvatar = {
+  id: string;
+  name: string;
+  kind: AvatarKind;
+  colors: {
+    skin: string;
+    hair: string;
+    hat: string;
+    shirt: string;
+    accent: string;
+    bg: string;
+  };
+};
 
 type ZoneUnlock = {
   unlocked: boolean;
   label: string;
+};
+
+const playerAvatars: PlayerAvatar[] = [
+  { id: 'boy-river', name: '溪桥少年', kind: 'male', colors: { skin: '#efb98a', hair: '#5b321e', hat: '#d69742', shirt: '#6aaa4d', accent: '#fff2bf', bg: '#6fbf7a' } },
+  { id: 'boy-dock', name: '码头南风', kind: 'male', colors: { skin: '#d9966f', hair: '#3f2a1d', hat: '#3c9dc4', shirt: '#fff2bf', accent: '#2f86a8', bg: '#7ec7d8' } },
+  { id: 'boy-barn', name: '谷仓青禾', kind: 'male', colors: { skin: '#cf865f', hair: '#2b1a12', hat: '#c84b36', shirt: '#f0b45d', accent: '#1f5f7f', bg: '#d7a45c' } },
+  { id: 'boy-fog', name: '雾港领航', kind: 'male', colors: { skin: '#e8ad84', hair: '#5b321e', hat: '#9aba66', shirt: '#d69b84', accent: '#243f73', bg: '#8aa9b8' } },
+  { id: 'boy-crown', name: '金穗钓王', kind: 'male', colors: { skin: '#f2b17b', hair: '#6e4328', hat: '#ffd464', shirt: '#c84b36', accent: '#3f7f3c', bg: '#f0c85a' } },
+  { id: 'girl-wheat', name: '麦田阿澄', kind: 'female', colors: { skin: '#f3c59a', hair: '#6e4328', hat: '#ffd464', shirt: '#8ccf5d', accent: '#7c4626', bg: '#c9d86a' } },
+  { id: 'girl-oak', name: '橡木莉雅', kind: 'female', colors: { skin: '#eeb17d', hair: '#7a2d22', hat: '#9b6437', shirt: '#3f7f3c', accent: '#4b77b5', bg: '#7ab06b' } },
+  { id: 'girl-rain', name: '雨棚阿井', kind: 'female', colors: { skin: '#efc097', hair: '#28323a', hat: '#587da1', shirt: '#7ea9df', accent: '#3f2a1d', bg: '#78a6c8' } },
+  { id: 'girl-glow', name: '萤灯牧夏', kind: 'female', colors: { skin: '#f4c99f', hair: '#4a2a1a', hat: '#dff39a', shirt: '#2f9b49', accent: '#315d7c', bg: '#91cf75' } },
+  { id: 'girl-star', name: '星渚洛白', kind: 'female', colors: { skin: '#f1c7a4', hair: '#26343f', hat: '#fff2bf', shirt: '#4b77b5', accent: '#5d3a22', bg: '#93b3df' } },
+  { id: 'animal-carp', name: '好运锦鲤', kind: 'animal', colors: { skin: '#ffd464', hair: '#b13b2d', hat: '#fff2bf', shirt: '#ff7a45', accent: '#2f6d83', bg: '#f5b75a' } },
+  { id: 'animal-cat', name: '港口狸猫', kind: 'animal', colors: { skin: '#d8a85b', hair: '#5d3a22', hat: '#fff2bf', shirt: '#8b542d', accent: '#2f86a8', bg: '#d0a66a' } },
+  { id: 'animal-otter', name: '浪花水獭', kind: 'animal', colors: { skin: '#a46a3f', hair: '#5d3a22', hat: '#e7c58a', shirt: '#3c9dc4', accent: '#fff2bf', bg: '#65bfd0' } },
+  { id: 'animal-gull', name: '白湾海鸥', kind: 'animal', colors: { skin: '#f8fbf5', hair: '#94a3b8', hat: '#ffd464', shirt: '#e2e8f0', accent: '#1f5f7f', bg: '#9bd4e6' } },
+  { id: 'animal-fox', name: '月岸小狐', kind: 'animal', colors: { skin: '#f0a14a', hair: '#8b3f24', hat: '#fff2bf', shirt: '#c84b36', accent: '#3f2a1d', bg: '#d68a59' } },
+];
+
+const getPlayerAvatar = (avatarId?: string) => playerAvatars.find((avatar) => avatar.id === avatarId) ?? playerAvatars[0];
+
+const svgToDataUri = (svg: string) => `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+
+const getAvatarImageSrc = (avatar: PlayerAvatar) => {
+  const c = avatar.colors;
+  const stroke = '#3f2a1d';
+  const shine = '#fff7d1';
+
+  if (avatar.kind !== 'animal') {
+    const female = avatar.kind === 'female';
+    const hair = female
+      ? `<rect x="9" y="10" width="30" height="28" fill="${c.hair}" stroke="${stroke}" stroke-width="2"/><rect x="6" y="23" width="8" height="20" fill="${c.hair}" stroke="${stroke}" stroke-width="2"/><rect x="34" y="23" width="8" height="20" fill="${c.hair}" stroke="${stroke}" stroke-width="2"/>`
+      : `<rect x="10" y="9" width="28" height="15" fill="${c.hair}" stroke="${stroke}" stroke-width="2"/><rect x="8" y="16" width="8" height="12" fill="${c.hair}" stroke="${stroke}" stroke-width="2"/><rect x="32" y="16" width="8" height="12" fill="${c.hair}" stroke="${stroke}" stroke-width="2"/>`;
+
+    return svgToDataUri(`
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 62" shape-rendering="crispEdges">
+        <rect width="48" height="62" fill="none"/>
+        <rect x="12" y="50" width="10" height="12" fill="${c.accent}" stroke="${stroke}" stroke-width="2"/>
+        <rect x="26" y="50" width="10" height="12" fill="${c.accent}" stroke="${stroke}" stroke-width="2"/>
+        <rect x="10" y="32" width="28" height="21" fill="${c.shirt}" stroke="${stroke}" stroke-width="2"/>
+        <rect x="18" y="28" width="12" height="8" fill="${c.skin}" stroke="${stroke}" stroke-width="2"/>
+        ${hair}
+        <rect x="13" y="16" width="22" height="21" fill="${c.skin}" stroke="${stroke}" stroke-width="2"/>
+        <rect x="17" y="24" width="3" height="3" fill="#2f1d14"/>
+        <rect x="28" y="24" width="3" height="3" fill="#2f1d14"/>
+        <rect x="21" y="31" width="7" height="2" fill="#8b3f24"/>
+        <rect x="7" y="6" width="34" height="9" fill="${c.hat}" stroke="${stroke}" stroke-width="2"/>
+        <rect x="14" y="1" width="21" height="7" fill="${c.hat}" stroke="${stroke}" stroke-width="2"/>
+        <rect x="27" y="8" width="7" height="7" fill="${c.accent}" stroke="${stroke}" stroke-width="1"/>
+        <rect x="13" y="37" width="22" height="4" fill="${shine}" opacity="0.22"/>
+      </svg>
+    `);
+  }
+
+  if (avatar.id.includes('carp')) {
+    return svgToDataUri(`
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 62" shape-rendering="crispEdges">
+        <rect width="48" height="62" fill="none"/>
+        <rect x="12" y="20" width="28" height="22" fill="${c.skin}" stroke="${stroke}" stroke-width="2"/>
+        <polygon points="10,31 3,22 3,40" fill="${c.hair}" stroke="${stroke}" stroke-width="2"/>
+        <rect x="33" y="25" width="10" height="12" fill="${c.shirt}" stroke="${stroke}" stroke-width="2"/>
+        <rect x="28" y="25" width="3" height="3" fill="#2f1d14"/>
+        <rect x="15" y="41" width="18" height="9" fill="${c.shirt}" stroke="${stroke}" stroke-width="2"/>
+        <rect x="20" y="14" width="15" height="6" fill="${c.hat}" stroke="${stroke}" stroke-width="2"/>
+        <rect x="18" y="31" width="5" height="3" fill="${c.accent}"/>
+      </svg>
+    `);
+  }
+
+  const bird = avatar.id.includes('gull');
+  const otter = avatar.id.includes('otter');
+  const ears = bird
+    ? `<rect x="11" y="12" width="8" height="8" fill="${c.hair}" stroke="${stroke}" stroke-width="2"/><rect x="29" y="12" width="8" height="8" fill="${c.hair}" stroke="${stroke}" stroke-width="2"/>`
+    : `<polygon points="12,18 18,6 24,20" fill="${c.hair}" stroke="${stroke}" stroke-width="2"/><polygon points="36,18 30,6 24,20" fill="${c.hair}" stroke="${stroke}" stroke-width="2"/>`;
+  const mouth = bird
+    ? `<polygon points="22,33 32,36 22,40" fill="${c.hat}" stroke="${stroke}" stroke-width="2"/>`
+    : `<rect x="18" y="34" width="12" height="8" fill="${otter ? c.hat : '#fff2bf'}" stroke="${stroke}" stroke-width="1"/><rect x="23" y="36" width="4" height="3" fill="${c.accent}"/>`;
+
+  return svgToDataUri(`
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 62" shape-rendering="crispEdges">
+      <rect width="48" height="62" fill="none"/>
+      ${ears}
+      <rect x="9" y="17" width="30" height="27" fill="${c.skin}" stroke="${stroke}" stroke-width="2"/>
+      <rect x="13" y="40" width="22" height="18" fill="${c.shirt}" stroke="${stroke}" stroke-width="2"/>
+      <rect x="16" y="28" width="4" height="4" fill="#2f1d14"/>
+      <rect x="28" y="28" width="4" height="4" fill="#2f1d14"/>
+      ${mouth}
+      <rect x="15" y="45" width="18" height="4" fill="${shine}" opacity="0.2"/>
+    </svg>
+  `);
 };
 
 const shouldBroadcastFish = (rarity: Fish['rarity']) => ['legendary', 'epic', 'mutant', 'king'].includes(rarity);
@@ -171,7 +277,8 @@ const seaClassByZone: Record<string, string> = {
 
 const normalizePlayer = (player: Partial<PlayerState>): PlayerState => {
   const loaded = { ...createDefaultPlayer(), ...player };
-  const normalized = provinces.includes(loaded.province) ? loaded : { ...loaded, province: provinces[0] };
+  const withAvatar = playerAvatars.some((avatar) => avatar.id === loaded.avatarId) ? loaded : { ...loaded, avatarId: playerAvatars[0].id };
+  const normalized = provinces.includes(withAvatar.province) ? withAvatar : { ...withAvatar, province: provinces[0] };
   return recoverStamina(normalized);
 };
 
@@ -226,6 +333,55 @@ const getRequiredHits = (fish: Fish | null) => {
   return requiredHitsByRarity[fish.rarity];
 };
 
+type RodVisual = {
+  handle: string;
+  mid: string;
+  tip: string;
+  reel: string;
+  guide: string;
+  glow: string;
+  glowOpacity: number;
+};
+
+type BaitVisual = {
+  core: string;
+  cap: string;
+  ring: string;
+  line: string;
+  glow: string;
+  glowOpacity: number;
+};
+
+const rodVisuals: Record<string, RodVisual> = {
+  basic: { handle: '#4f321e', mid: '#8b542d', tip: '#d8a85b', reel: '#6b3f24', guide: '#f2c45c', glow: '#f2c45c', glowOpacity: 0.05 },
+  starter: { handle: '#3f4f34', mid: '#6aaa4d', tip: '#dff39a', reel: '#8b542d', guide: '#f7d07a', glow: '#dff39a', glowOpacity: 0.12 },
+  fine: { handle: '#5b3f22', mid: '#c4873f', tip: '#ffe38c', reel: '#2f86a8', guide: '#fff2bf', glow: '#ffe38c', glowOpacity: 0.18 },
+  rare: { handle: '#173a4e', mid: '#2f86a8', tip: '#8be4ee', reel: '#315d7c', guide: '#dff39a', glow: '#8be4ee', glowOpacity: 0.24 },
+  fog: { handle: '#334155', mid: '#7ea9df', tip: '#e0f2fe', reel: '#587da1', guide: '#c4d7e8', glow: '#bfdbfe', glowOpacity: 0.22 },
+  tide: { handle: '#172033', mid: '#243f73', tip: '#60a5fa', reel: '#0f172a', guide: '#93c5fd', glow: '#60a5fa', glowOpacity: 0.3 },
+  epic: { handle: '#4a2a1a', mid: '#d69742', tip: '#fff2bf', reel: '#7c3aed', guide: '#ffd464', glow: '#ffd464', glowOpacity: 0.34 },
+  moon: { handle: '#3b1f2a', mid: '#a23b52', tip: '#fecaca', reel: '#7f1d1d', guide: '#fda4af', glow: '#fb7185', glowOpacity: 0.36 },
+  abyss: { handle: '#102033', mid: '#0f766e', tip: '#67e8f9', reel: '#164e63', guide: '#a7f3d0', glow: '#67e8f9', glowOpacity: 0.4 },
+  legend: { handle: '#3f2a1d', mid: '#e0a95a', tip: '#fff7d1', reel: '#b45309', guide: '#fde68a', glow: '#fde68a', glowOpacity: 0.46 },
+  crown: { handle: '#13243a', mid: '#14b8a6', tip: '#fff7d1', reel: '#ffd464', guide: '#67e8f9', glow: '#67e8f9', glowOpacity: 0.52 },
+};
+
+const baitVisuals: Record<string, BaitVisual> = {
+  plain: { core: '#f1d08a', cap: '#8b542d', ring: '#fff2bf', line: '#f8fafc', glow: '#fff2bf', glowOpacity: 0.04 },
+  shrimp: { core: '#fb7185', cap: '#fed7aa', ring: '#fff2bf', line: '#fecaca', glow: '#fb7185', glowOpacity: 0.14 },
+  clam: { core: '#c4d7e8', cap: '#94a3b8', ring: '#f8fafc', line: '#dbeafe', glow: '#dbeafe', glowOpacity: 0.16 },
+  glow: { core: '#bef264', cap: '#65a30d', ring: '#ecfccb', line: '#d9f99d', glow: '#bef264', glowOpacity: 0.24 },
+  mist: { core: '#93c5fd', cap: '#587da1', ring: '#e0f2fe', line: '#bfdbfe', glow: '#93c5fd', glowOpacity: 0.24 },
+  blood: { core: '#fb7185', cap: '#7f1d1d', ring: '#fecaca', line: '#fda4af', glow: '#fb7185', glowOpacity: 0.32 },
+  black: { core: '#0f172a', cap: '#22d3ee', ring: '#67e8f9', line: '#67e8f9', glow: '#22d3ee', glowOpacity: 0.34 },
+  bell: { core: '#ffd464', cap: '#b45309', ring: '#fff2bf', line: '#fde68a', glow: '#ffd464', glowOpacity: 0.36 },
+  rift: { core: '#a78bfa', cap: '#4c1d95', ring: '#e9d5ff', line: '#c4b5fd', glow: '#a78bfa', glowOpacity: 0.42 },
+  king: { core: '#67e8f9', cap: '#ffd464', ring: '#fff7d1', line: '#d9f99d', glow: '#67e8f9', glowOpacity: 0.52 },
+};
+
+const getRodVisual = (rodId: string) => rodVisuals[rodId] ?? rodVisuals.basic;
+const getBaitVisual = (baitId: string) => baitVisuals[baitId] ?? baitVisuals.plain;
+
 const baseProgressGainByRarity: Record<Fish['rarity'], number> = {
   common: 38,
   rare: 30,
@@ -244,6 +400,13 @@ const getWindowDistance = (value: number, hitWindow: { min: number; max: number 
   if (value > hitWindow.max) return value - hitWindow.max;
   return 0;
 };
+
+const timingNeedleHitPadding = 1.25;
+
+const expandHitWindow = (hitWindow: { min: number; max: number }, padding = timingNeedleHitPadding) => ({
+  min: clamp(hitWindow.min - padding, 0, 100),
+  max: clamp(hitWindow.max + padding, 0, 100),
+});
 
 const getWindowAccuracy = (value: number, hitWindow: { min: number; max: number }) => {
   const center = (hitWindow.min + hitWindow.max) / 2;
@@ -399,6 +562,7 @@ function App() {
   const equippedRod = useMemo(() => getEquippedRod(player), [player]);
   const equippedBait = useMemo(() => getEquippedBait(player), [player]);
   const equippedCharacter = useMemo(() => getEquippedCharacter(player), [player]);
+  const selectedAvatar = useMemo(() => getPlayerAvatar(player.avatarId), [player.avatarId]);
   const luck = useMemo(() => getLuck(player), [player]);
   const zoneUnlocks = useMemo(() => getZoneUnlocks(player, codex), [player, codex]);
   const provinceScores = remoteProvinceScores;
@@ -865,7 +1029,8 @@ function App() {
   const createHitWindow = (fish: Fish | null) => {
     const width = getHitWindowWidth(fish);
     const half = width / 2;
-    const center = randomInt(Math.ceil(half * 10), Math.floor((100 - half) * 10)) / 10;
+    const visualPadding = timingNeedleHitPadding;
+    const center = randomInt(Math.ceil((half + visualPadding) * 10), Math.floor((100 - half - visualPadding) * 10)) / 10;
     return {
       min: clamp(center - half, 0, 100),
       max: clamp(center + half, 0, 100),
@@ -875,16 +1040,18 @@ function App() {
   const tapTiming = () => {
     if (phase !== 'reeling' || fightResolvedRef.current || timingLockedRef.current || !hookedFish) return;
     const currentTimingValue = timingValue;
-    const windowDistance = getWindowDistance(currentTimingValue, timingTarget);
-    const isHit = currentTimingValue >= timingTarget.min && currentTimingValue <= timingTarget.max;
+    const effectiveHitWindow = expandHitWindow(timingTarget);
+    const windowDistance = getWindowDistance(currentTimingValue, effectiveHitWindow);
+    const isHit = currentTimingValue >= effectiveHitWindow.min && currentTimingValue <= effectiveHitWindow.max;
     const requiredHits = getRequiredHits(hookedFish);
 
     if (isHit) {
       timingLockedRef.current = true;
       const accuracy = getWindowAccuracy(currentTimingValue, timingTarget);
       const gain = getProgressGain(hookedFish, accuracy, equippedRod, equippedBait, equippedCharacter, selectedZone);
-      const nextProgress = clamp(progress + gain, 0, 100);
-      const nextHits = nextProgress >= 100 ? requiredHits : Math.min(requiredHits, hitCount + 1);
+      const completesRequiredHits = hitCount + 1 >= requiredHits;
+      const nextProgress = completesRequiredHits ? 100 : clamp(progress + gain, 0, 100);
+      const nextHits = nextProgress >= 100 ? requiredHits : hitCount + 1;
       flushSync(() => {
         setHitCount(nextHits);
         setMissCount((value) => Math.max(0, value - 1));
@@ -966,6 +1133,13 @@ function App() {
     setToast(`${character.name} 加入队伍`);
   };
 
+  const pickAvatar = (avatarId: string) => {
+    const avatar = getPlayerAvatar(avatarId);
+    setPlayer((current) => ({ ...current, avatarId: avatar.id }));
+    setToast(`头像已切换：${avatar.name}`);
+    setSheet(null);
+  };
+
   const claimStarter = async () => {
     const playerId = playerIdInput.trim();
     if (!playerId) return;
@@ -1027,7 +1201,7 @@ function App() {
     <main className="stardew-ui min-h-screen overflow-hidden bg-slate-950 text-slate-100">
       <div className="flex min-h-screen items-center justify-center p-0 sm:p-4">
         <div className={`phone-frame weird-phone relative flex h-[100dvh] w-full max-w-[390px] flex-col overflow-hidden sm:h-[844px] ${sceneClass} ${tugFeedback ? `fish-tug fish-tug-${tugFeedback}` : ''}`}>
-          <FishingBackdrop phase={phase} rarity={hookedFish?.rarity} anomaly={anomaly.id !== 'none'} zoneId={selectedZone.id} pulse={pulse} character={equippedCharacter} />
+          <FishingBackdrop phase={phase} rarity={hookedFish?.rarity} anomaly={anomaly.id !== 'none'} zoneId={selectedZone.id} pulse={pulse} character={equippedCharacter} rod={equippedRod} bait={equippedBait} />
 
           {!player.playerId && (
             <div className="absolute inset-0 z-[70] flex items-center justify-center bg-slate-950/78 p-6 backdrop-blur">
@@ -1053,7 +1227,7 @@ function App() {
 
           <header className="relative z-10 px-4 pt-3">
             <div className="mx-auto flex w-full max-w-[350px] items-start justify-between gap-2">
-              <PlayerHud id={player.playerId || '--'} coins={player.coins} character={equippedCharacter} />
+              <PlayerHud id={player.playerId || '--'} coins={player.coins} avatar={selectedAvatar} onAvatarClick={() => setSheet('avatar')} />
               <EnergyHud stamina={player.stamina} countdown={staminaCountdown} />
             </div>
             <div className="pk-card mx-auto mt-2 w-full max-w-[350px] rounded-[18px] px-3 py-2 backdrop-blur">
@@ -1190,10 +1364,11 @@ function App() {
           )}
           {sheet && (
             <BottomSheet
-              title={sheet === 'shopRod' ? "\u9c7c\u7aff\u5546\u5e97" : sheet === 'shopBait' ? "\u9c7c\u9975\u5546\u5e97" : sheet === 'character' ? "\u9009\u62e9\u89d2\u8272" : sheet === 'rankDistrict' ? "\u533a\u57df\u699c\u5355" : sheet === 'rankPlayer' ? "\u73a9\u5bb6\u699c\u5355" : sheet === 'zone' ? "\u9009\u62e9\u6d77\u57df" : sheet === 'district' ? "\u9009\u62e9\u5e7f\u5dde\u533a\u670d" : "\u9c7c\u7c7b\u56fe\u9274"}
+              title={sheet === 'shopRod' ? "\u9c7c\u7aff\u5546\u5e97" : sheet === 'shopBait' ? "\u9c7c\u9975\u5546\u5e97" : sheet === 'character' ? "\u9009\u62e9\u89d2\u8272" : sheet === 'avatar' ? "\u9009\u62e9\u5934\u50cf" : sheet === 'rankDistrict' ? "\u533a\u57df\u699c\u5355" : sheet === 'rankPlayer' ? "\u73a9\u5bb6\u699c\u5355" : sheet === 'zone' ? "\u9009\u62e9\u6d77\u57df" : sheet === 'district' ? "\u9009\u62e9\u5e7f\u5dde\u533a\u670d" : "\u9c7c\u7c7b\u56fe\u9274"}
               onClose={() => setSheet(null)}
             >
               {(sheet === 'shopRod' || sheet === 'shopBait') && <Shop mode={sheet === 'shopRod' ? 'rod' : 'bait'} player={player} equippedRodId={player.equippedRodId} equippedBaitId={player.equippedBaitId} onBuyRod={buyRod} onBuyBait={buyBait} />}
+              {sheet === 'avatar' && <AvatarPicker selectedAvatarId={selectedAvatar.id} onPick={pickAvatar} />}
               {sheet === 'character' && <CharacterPicker player={player} equippedCharacterId={player.equippedCharacterId} onPick={buyCharacter} />}
               {sheet === 'rankDistrict' && <DistrictRank scores={provinceScores} province={player.province} contribution={player.provinceContribution} leaderboardOnline={leaderboardOnline} />}
               {sheet === 'rankPlayer' && <PlayerRank broadcasts={broadcasts} playerRows={remotePlayerRows} playerId={player.playerId} leaderboardOnline={leaderboardOnline} />}
@@ -1210,10 +1385,12 @@ function App() {
   );
 }
 
-function PlayerHud({ id, coins, character }: { id: string; coins: number; character: FishingCharacter }) {
+function PlayerHud({ id, coins, avatar, onAvatarClick }: { id: string; coins: number; avatar: PlayerAvatar; onAvatarClick: () => void }) {
   return (
     <div className="player-hud flex min-w-0 flex-1 items-center gap-2 rounded-[20px] px-2.5 py-2 backdrop-blur">
-      <AvatarPortrait character={character} />
+      <button type="button" onClick={onAvatarClick} className="player-avatar-button shrink-0 active:scale-95" aria-label="切换头像">
+        <AvatarPortrait avatar={avatar} />
+      </button>
       <div className="min-w-0 text-left">
         <div className="truncate text-[13px] font-black leading-4 text-white">{id}</div>
         <div className="mt-0.5 flex items-center gap-1 text-[12px] font-black leading-4 text-amber-100">
@@ -1225,12 +1402,10 @@ function PlayerHud({ id, coins, character }: { id: string; coins: number; charac
   );
 }
 
-function AvatarPortrait({ character }: { character: FishingCharacter }) {
+function AvatarPortrait({ avatar }: { avatar: PlayerAvatar }) {
   return (
-    <div className="player-avatar-wrap grid h-10 w-10 shrink-0 place-items-center rounded-2xl">
-      <div className="player-avatar-pixel">
-        <CharacterPortrait character={character} />
-      </div>
+    <div className={`player-avatar-wrap player-avatar-${avatar.kind} grid h-10 w-10 shrink-0 place-items-center rounded-2xl`} style={{ '--avatar-bg': avatar.colors.bg } as React.CSSProperties}>
+      <img className="player-avatar-image" src={getAvatarImageSrc(avatar)} alt="" draggable={false} />
     </div>
   );
 }
@@ -1281,7 +1456,7 @@ function BroadcastLine({ item }: { item: BroadcastItem }) {
   );
 }
 
-function FishingBackdrop({ phase, rarity, anomaly, zoneId, pulse, character }: { phase: Phase; rarity?: Fish['rarity']; anomaly: boolean; zoneId: string; pulse: boolean; character: FishingCharacter }) {
+function FishingBackdrop({ phase, rarity, anomaly, zoneId, pulse, character, rod, bait }: { phase: Phase; rarity?: Fish['rarity']; anomaly: boolean; zoneId: string; pulse: boolean; character: FishingCharacter; rod: Rod; bait: Bait }) {
   const bigShadow = rarity === 'king' || rarity === 'mutant';
   const zoneClass = `backdrop-${zoneId}`;
 
@@ -1311,7 +1486,7 @@ function FishingBackdrop({ phase, rarity, anomaly, zoneId, pulse, character }: {
       <div className="sea-sparks absolute inset-x-0 top-[50%] h-[24%]" />
       <div className={`underwater-shadow absolute left-1/2 top-[64%] h-20 -translate-x-1/2 rounded-[50%] bg-slate-950/35 blur-md ${bigShadow ? 'w-72 opacity-80' : 'w-44 opacity-45'} ${phase === 'reeling' ? 'fish-shadow' : ''}`} />
       <div className="boat-rim absolute inset-x-[-20px] bottom-[144px] h-24 rounded-t-[50%] bg-gradient-to-b from-stone-700 via-stone-950 to-slate-950 shadow-2xl" />
-      <FishingGear active={phase === 'reeling'} biting={phase !== 'idle'} pulse={pulse} />
+      <FishingGear active={phase === 'reeling'} biting={phase !== 'idle'} pulse={pulse} rod={rod} bait={bait} />
       <div className="boat-highlight absolute inset-x-8 bottom-[207px] h-2 rounded-full bg-lime-100/20" />
       <PixelAngler character={character} casting={phase !== 'idle' || pulse} />
     </div>
@@ -1345,18 +1520,24 @@ function PixelAngler({ character, casting }: { character: FishingCharacter; cast
   );
 }
 
-function FishingGear({ active, biting, pulse }: { active: boolean; biting: boolean; pulse: boolean }) {
+function FishingGear({ active, biting, pulse, rod, bait }: { active: boolean; biting: boolean; pulse: boolean; rod: Rod; bait: Bait }) {
+  const rodVisual = getRodVisual(rod.id);
+  const baitVisual = getBaitVisual(bait.id);
+
   return (
     <svg className="fishing-gear absolute inset-0 h-full w-full" viewBox="0 0 390 844" preserveAspectRatio="none" aria-hidden="true">
       <defs>
         <linearGradient id="rodGradient" x1="96" y1="604" x2="230" y2="318" gradientUnits="userSpaceOnUse">
-          <stop offset="0" stopColor="#0f172a" />
-          <stop offset="0.35" stopColor="#7c4a18" />
-          <stop offset="0.76" stopColor="#a16207" />
-          <stop offset="1" stopColor="#ecfccb" />
+          <stop offset="0" stopColor={rodVisual.handle} />
+          <stop offset="0.35" stopColor={rodVisual.mid} />
+          <stop offset="0.76" stopColor={rodVisual.tip} />
+          <stop offset="1" stopColor={rodVisual.guide} />
         </linearGradient>
         <filter id="gearGlow" x="-40%" y="-40%" width="180%" height="180%">
-          <feDropShadow dx="0" dy="0" stdDeviation="3" floodColor="#bef264" floodOpacity="0.42" />
+          <feDropShadow dx="0" dy="0" stdDeviation="3" floodColor={rodVisual.glow} floodOpacity={rodVisual.glowOpacity} />
+        </filter>
+        <filter id="baitGlow" x="-80%" y="-80%" width="260%" height="260%">
+          <feDropShadow dx="0" dy="0" stdDeviation="4" floodColor={baitVisual.glow} floodOpacity={baitVisual.glowOpacity} />
         </filter>
       </defs>
 
@@ -1364,20 +1545,21 @@ function FishingGear({ active, biting, pulse }: { active: boolean; biting: boole
         <path className={active ? 'gear-rod gear-rod-active' : 'gear-rod'} d="M96 604 C126 522 169 414 230 318" stroke="url(#rodGradient)" strokeWidth="5.5" strokeLinecap="round" fill="none" filter="url(#gearGlow)" />
         <path d="M78 650 C85 635 93 617 100 599" stroke="#020617" strokeWidth="10" strokeLinecap="round" fill="none" />
         <path d="M70 655 C80 651 91 645 101 637" stroke="#020617" strokeWidth="8" strokeLinecap="round" fill="none" />
-        <circle cx="107" cy="609" r="10" fill="rgba(190,242,100,0.58)" stroke="#020617" strokeWidth="4" />
+        <circle cx="107" cy="609" r="10" fill={rodVisual.reel} stroke="#020617" strokeWidth="4" />
         <circle cx="107" cy="609" r="4" fill="none" stroke="#020617" strokeWidth="3" />
         <path d="M116 607 C126 606 131 611 134 617" stroke="#020617" strokeWidth="4" strokeLinecap="round" fill="none" />
-        <circle cx="110" cy="576" r="4.5" fill="none" stroke="#d9f99d" strokeWidth="2.5" />
-        <circle cx="143" cy="487" r="4" fill="none" stroke="#d9f99d" strokeWidth="2.5" />
-        <circle cx="184" cy="392" r="3.5" fill="none" stroke="#d9f99d" strokeWidth="2.5" />
-        <circle cx="230" cy="318" r="4" fill="#ecfccb" filter="url(#gearGlow)" />
+        <circle cx="110" cy="576" r="4.5" fill="none" stroke={rodVisual.guide} strokeWidth="2.5" />
+        <circle cx="143" cy="487" r="4" fill="none" stroke={rodVisual.guide} strokeWidth="2.5" />
+        <circle cx="184" cy="392" r="3.5" fill="none" stroke={rodVisual.guide} strokeWidth="2.5" />
+        <circle cx="230" cy="318" r="4" fill={rodVisual.tip} filter="url(#gearGlow)" />
 
         <g className={active ? 'gear-line gear-line-active' : 'gear-line'}>
-          <path d="M230 318 C235 388 229 456 216 516" stroke="rgba(255,255,255,0.88)" strokeWidth="2" strokeLinecap="round" fill="none" />
-          <path d="M230 318 C235 388 229 456 216 516" stroke="rgba(190,242,100,0.24)" strokeWidth="4" strokeLinecap="round" fill="none" />
+          <path d="M230 318 C235 388 229 456 216 516" stroke={baitVisual.line} strokeWidth="2" strokeLinecap="round" fill="none" />
+          <path d="M230 318 C235 388 229 456 216 516" stroke={baitVisual.glow} strokeOpacity={baitVisual.glowOpacity} strokeWidth="4" strokeLinecap="round" fill="none" />
           <g className={biting ? 'gear-bobber gear-bobber-bite' : 'gear-bobber'}>
-            <circle cx="216" cy="516" r="10" fill="#fb7185" stroke="#ecfccb" strokeWidth="3" filter="url(#gearGlow)" />
-            <path d="M207 516 H225" stroke="#ecfccb" strokeWidth="3" strokeLinecap="round" />
+            <circle cx="216" cy="516" r="10" fill={baitVisual.core} stroke={baitVisual.ring} strokeWidth="3" filter="url(#baitGlow)" />
+            <path d="M207 516 H225" stroke={baitVisual.cap} strokeWidth="3" strokeLinecap="round" />
+            <circle cx="216" cy="516" r="4" fill={baitVisual.cap} opacity="0.85" />
           </g>
         </g>
       </g>
@@ -1412,6 +1594,7 @@ function TimingChallenge({
   onTap: () => void;
 }) {
   const remainingHits = Math.max(0, requiredHits - hits);
+  const effectiveHitWindow = expandHitWindow(hitWindow);
 
   return (
     <div className={`timing-panel strong-panel z-10 w-full max-w-[360px] rounded-[22px] bg-black/65 px-3 py-3 text-center shadow-glow backdrop-blur ${danger ? 'bg-rose-950/88' : ''}`}>
@@ -1434,9 +1617,16 @@ function TimingChallenge({
         }}
         className="timing-lane relative mt-3 h-16 w-full overflow-hidden rounded-[14px] text-left active:scale-[0.99]"
       >
-        <span className="pointer-events-none absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-white/25" />
+        <span className="timing-lane-mid pointer-events-none absolute inset-y-0 left-1/2 w-px -translate-x-1/2" />
         <div
-          className="timing-target absolute top-1/2 h-12 -translate-y-1/2 rounded-[10px]"
+          className="timing-target timing-target-effective absolute top-1/2 h-12 -translate-y-1/2 rounded-[10px]"
+          style={{
+            left: `${effectiveHitWindow.min}%`,
+            width: `${effectiveHitWindow.max - effectiveHitWindow.min}%`,
+          }}
+        />
+        <div
+          className="timing-target-core absolute top-1/2 h-12 -translate-y-1/2 rounded-[10px]"
           style={{
             left: `${hitWindow.min}%`,
             width: `${hitWindow.max - hitWindow.min}%`,
@@ -1500,7 +1690,8 @@ function ResultCard({ result, onClose }: { result: ResultState; onClose: () => v
 
   return (
     <div className="absolute inset-0 z-40 flex items-center justify-center bg-slate-950/38 px-4 backdrop-blur-[1px]">
-      <div className="result-panel strong-panel relative max-h-[calc(100%-170px)] w-full max-w-[326px] overflow-y-auto rounded-[24px] p-4 text-center shadow-glow backdrop-blur">
+      <div className="result-panel strong-panel relative flex max-h-[calc(100%-170px)] w-full max-w-[326px] flex-col overflow-hidden rounded-[24px] text-center shadow-glow backdrop-blur">
+        <div className="result-panel-body overflow-y-auto p-4">
         {result.success && result.fish ? (
           <>
             {result.isNew && <span className="absolute left-3 top-3 z-10 rounded-full bg-rose-500 px-2.5 py-1 text-[10px] font-black text-white shadow-gold">NEW</span>}
@@ -1533,14 +1724,17 @@ function ResultCard({ result, onClose }: { result: ResultState; onClose: () => v
             <p className="mt-1 text-xs text-cyan-100">{"\u5b83\u8fd8\u5728\u4e0b\u9762\u3002"}</p>
           </>
         )}
+        </div>
+        <div className="result-panel-footer p-3">
         <button
           type="button"
           disabled={!canDismiss}
           onClick={closeResult}
-          className="mt-3 h-12 w-full rounded-2xl bg-lime-200 text-base font-black text-slate-950 shadow-glow active:scale-95 disabled:opacity-55"
+          className="h-12 w-full rounded-2xl bg-lime-200 text-base font-black text-slate-950 shadow-glow active:scale-95 disabled:opacity-55"
         >
           {"\u7ee7\u7eed\u9493\u9c7c"}
         </button>
+        </div>
       </div>
     </div>
   );
@@ -1611,12 +1805,17 @@ function PixelFish({ fish, size = 'small', hidden }: { fish: Fish; size?: 'small
 function BottomSheet({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) {
   return (
     <div className="absolute inset-0 z-50 flex items-end bg-slate-950/55 backdrop-blur-sm">
-      <div className="bottom-sheet-panel max-h-[72%] w-full overflow-y-auto rounded-t-[30px] bg-slate-950 p-4 shadow-glow">
-        <div className="mb-3 flex items-center justify-between">
+      <div className="bottom-sheet-panel flex max-h-[72%] w-full flex-col overflow-hidden rounded-t-[30px] bg-slate-950 shadow-glow">
+        <div className="bottom-sheet-header flex items-center justify-between px-4 py-3">
           <h2 className="text-2xl font-black">{title}</h2>
           <button onClick={onClose} className="rounded-full bg-white/10 px-4 py-2 text-sm font-black">关闭</button>
         </div>
-        {children}
+        <div className="bottom-sheet-body overflow-y-auto px-4 pb-4">
+          {children}
+        </div>
+        <div className="bottom-sheet-footer px-4 py-3">
+          <button onClick={onClose} className="h-11 w-full rounded-full bg-white/10 px-4 py-2 text-sm font-black">{"\u5173\u95ed"}</button>
+        </div>
       </div>
     </div>
   );
@@ -1636,6 +1835,7 @@ function Shop({ mode, player, equippedRodId, equippedBaitId, onBuyRod, onBuyBait
                 <div className="flex items-center justify-between gap-2 text-base font-black">
                   <span className="flex min-w-0 items-center gap-2">
                     {locked && <LockKeyhole className="shop-lock-icon shrink-0" size={15} />}
+                    <RodPreview rodId={rod.id} />
                     <span className="truncate">{rod.name}</span>
                   </span>
                   <span className="shrink-0">{equipped ? "\u4f7f\u7528\u4e2d" : owned ? "\u88c5\u5907" : `${rod.price}\u91d1\u5e01`}</span>
@@ -1657,6 +1857,7 @@ function Shop({ mode, player, equippedRodId, equippedBaitId, onBuyRod, onBuyBait
                 <div className="flex items-center justify-between gap-2 text-base font-black">
                   <span className="flex min-w-0 items-center gap-2">
                     {locked && <LockKeyhole className="shop-lock-icon shrink-0" size={15} />}
+                    <BaitPreview baitId={bait.id} />
                     <span className="truncate">{bait.name}</span>
                   </span>
                   <span className="shrink-0">{equipped ? "\u4f7f\u7528\u4e2d" : owned ? "\u4f7f\u7528" : `${bait.price}\u91d1\u5e01`}</span>
@@ -1668,6 +1869,79 @@ function Shop({ mode, player, equippedRodId, equippedBaitId, onBuyRod, onBuyBait
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+function RodPreview({ rodId }: { rodId: string }) {
+  const visual = getRodVisual(rodId);
+  return (
+    <span
+      className="rod-preview shrink-0"
+      style={{
+        '--rod-handle': visual.handle,
+        '--rod-mid': visual.mid,
+        '--rod-tip': visual.tip,
+        '--rod-glow': visual.glow,
+        '--rod-glow-opacity': visual.glowOpacity,
+      } as React.CSSProperties}
+      aria-hidden="true"
+    >
+      <i />
+    </span>
+  );
+}
+
+function BaitPreview({ baitId }: { baitId: string }) {
+  const visual = getBaitVisual(baitId);
+  return (
+    <span
+      className="bait-preview shrink-0"
+      style={{
+        '--bait-core': visual.core,
+        '--bait-cap': visual.cap,
+        '--bait-ring': visual.ring,
+        '--bait-glow': visual.glow,
+        '--bait-glow-opacity': visual.glowOpacity,
+      } as React.CSSProperties}
+      aria-hidden="true"
+    >
+      <i />
+    </span>
+  );
+}
+
+function AvatarPicker({ selectedAvatarId, onPick }: { selectedAvatarId: string; onPick: (id: string) => void }) {
+  const groups: Array<{ key: AvatarKind; title: string }> = [
+    { key: 'male', title: '男生' },
+    { key: 'female', title: '女生' },
+    { key: 'animal', title: '动物' },
+  ];
+
+  return (
+    <div className="avatar-picker space-y-4">
+      {groups.map((group) => (
+        <section key={group.key} className="avatar-picker-section">
+          <div className="mb-2 text-sm font-black">{group.title}</div>
+          <div className="avatar-grid grid grid-cols-5 gap-2">
+            {playerAvatars.filter((avatar) => avatar.kind === group.key).map((avatar) => {
+              const active = selectedAvatarId === avatar.id;
+              return (
+                <button
+                  type="button"
+                  key={avatar.id}
+                  onClick={() => onPick(avatar.id)}
+                  className={`avatar-choice ${active ? 'avatar-choice-active' : ''}`}
+                  aria-label={avatar.name}
+                >
+                  <AvatarPortrait avatar={avatar} />
+                  <span className="mt-1 block truncate text-[10px] font-black">{avatar.name}</span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      ))}
     </div>
   );
 }

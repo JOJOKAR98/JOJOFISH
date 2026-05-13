@@ -87,6 +87,7 @@ export interface PlayerState {
   equippedBaitId: string;
   ownedCharacterIds: string[];
   equippedCharacterId: string;
+  avatarId: string;
   dailyLuckDate: string;
   lastLuckAdAt: number;
   provinceContribution: number;

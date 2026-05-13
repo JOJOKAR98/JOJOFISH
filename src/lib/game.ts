@@ -29,6 +29,7 @@ export const createDefaultPlayer = (): PlayerState => ({
   equippedBaitId: 'plain',
   ownedCharacterIds: ['brook-mallow'],
   equippedCharacterId: 'brook-mallow',
+  avatarId: 'boy-river',
   dailyLuckDate: '',
   lastLuckAdAt: 0,
   provinceContribution: 0,
