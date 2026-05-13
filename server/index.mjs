@@ -494,7 +494,7 @@ app.post('/api/catches', async (request, response) => {
   }
 });
 
-app.post('/feishu/events', async (request, response, next) => {
+const handleFeishuEvents = async (request, response, next) => {
   try {
     const body = getFeishuEventBody(request.body);
 
@@ -528,7 +528,10 @@ app.post('/feishu/events', async (request, response, next) => {
   } catch (error) {
     next(error);
   }
-});
+};
+
+app.post('/feishu/events', handleFeishuEvents);
+app.post('/api/feishu/events', handleFeishuEvents);
 
 if (existsSync(distDir)) {
   app.use(express.static(distDir));
