@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "server": "node server/index.mjs",
+    "bot": "node bot/feishu-openai-bot.mjs",
     "start": "node server/index.mjs",
     "build": "tsc && vite build",
     "preview": "vite preview"
@@ -19,6 +20,7 @@
     "typescript": "^5.8.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "openai": "^6.8.1",
     "tailwindcss": "^3.4.17",
     "postcss": "^8.5.0",
     "autoprefixer": "^10.4.20",

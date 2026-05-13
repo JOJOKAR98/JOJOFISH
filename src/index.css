@@ -3457,22 +3457,30 @@ body {
 }
 
 .stardew-ui .timing-needle {
-  width: 14px !important;
+  width: 100% !important;
+  will-change: transform;
+  contain: layout paint;
+  pointer-events: none;
   filter: drop-shadow(0 0 5px rgba(244, 63, 94, 0.58)) !important;
 }
 
 .stardew-ui .timing-needle > span:first-child {
+  left: 0 !important;
   width: 6px !important;
+  transform: translateX(-50%) !important;
   border-radius: 999px;
   background: linear-gradient(180deg, #fff7d1 0%, #ef4444 24%, #b91c1c 100%) !important;
   box-shadow: 0 0 0 1px rgba(47, 29, 20, 0.45) !important;
 }
 
 .stardew-ui .timing-needle > span:nth-child(2) {
+  left: 0 !important;
+  transform: translateX(-50%) !important;
   background: rgba(255, 255, 255, 0.76) !important;
 }
 
 .stardew-ui .timing-needle-cap {
+  left: 0 !important;
   border-left-width: 9px !important;
   border-right-width: 9px !important;
 }

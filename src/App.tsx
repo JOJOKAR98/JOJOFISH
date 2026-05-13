@@ -188,7 +188,7 @@ const MOBILE_LEADERBOARD_REFRESH_MS = 45000;
 const DESKTOP_LEADERBOARD_REFRESH_MS = 15000;
 const MOBILE_FIGHT_TIMER_MS = 100;
 const DESKTOP_FIGHT_TIMER_MS = 50;
-const MOBILE_TIMING_RENDER_MS = 66;
+const MOBILE_TIMING_RENDER_MS = 33;
 const DESKTOP_TIMING_RENDER_MS = 16;
 const MOBILE_AMBIENT_TUG_POLL_MS = 250;
 const DESKTOP_AMBIENT_TUG_POLL_MS = 120;
@@ -293,10 +293,13 @@ const seaClassByZone: Record<string, string> = {
   moon: 'sea-zone-moon',
 };
 
+const isValidZoneId = (zoneId?: string) => seaZones.some((zone) => zone.id === zoneId);
+
 const normalizePlayer = (player: Partial<PlayerState>): PlayerState => {
   const loaded = { ...createDefaultPlayer(), ...player };
   const withAvatar = playerAvatars.some((avatar) => avatar.id === loaded.avatarId) ? loaded : { ...loaded, avatarId: playerAvatars[0].id };
-  const normalized = provinces.includes(withAvatar.province) ? withAvatar : { ...withAvatar, province: provinces[0] };
+  const withProvince = provinces.includes(withAvatar.province) ? withAvatar : { ...withAvatar, province: provinces[0] };
+  const normalized = isValidZoneId(withProvince.selectedZoneId) ? withProvince : { ...withProvince, selectedZoneId: 'normal' };
   return recoverStamina(normalized);
 };
 
@@ -537,7 +540,7 @@ const getFishVisual = (fish: Fish) => {
 function App() {
   const [player, setPlayer] = useState<PlayerState>(() => loadPlayer());
   const [phase, setPhase] = useState<Phase>('idle');
-  const [selectedZoneId, setSelectedZoneId] = useState('normal');
+  const [selectedZoneId, setSelectedZoneId] = useState(() => player.selectedZoneId);
   const [sheet, setSheet] = useState<Sheet>(null);
   const [anomaly, setAnomaly] = useState<Anomaly>(anomalies[0]);
   const [hookedFish, setHookedFish] = useState<Fish | null>(null);
@@ -545,7 +548,6 @@ function App() {
   const [timeLeft, setTimeLeft] = useState(6);
   const [roundDuration, setRoundDuration] = useState(6);
   const [progress, setProgress] = useState(0);
-  const [timingValue, setTimingValue] = useState(0);
   const [timingTarget, setTimingTarget] = useState({ min: 48, max: 52 });
   const [hitCount, setHitCount] = useState(0);
   const [missCount, setMissCount] = useState(0);
@@ -578,6 +580,12 @@ function App() {
   const progressRef = useRef(progress);
   const saveHydratedRef = useRef(false);
   const lowPowerDeviceRef = useRef(isLowPowerDevice());
+  const playerRef = useRef(player);
+  const selectedZoneIdRef = useRef(selectedZoneId);
+  const phaseRef = useRef(phase);
+  const sessionTouchedProvinceRef = useRef(false);
+  const sessionTouchedZoneRef = useRef(false);
+  const timingNeedleRef = useRef<HTMLDivElement | null>(null);
 
   const selectedZone = useMemo(() => seaZones.find((zone) => zone.id === selectedZoneId) ?? seaZones[0], [selectedZoneId]);
   const equippedRod = useMemo(() => getEquippedRod(player), [player]);
@@ -598,12 +606,33 @@ function App() {
   const canCast = phase === 'idle' && !!player.playerId;
   const visibleFish = phase === 'reeling' || !!result;
 
+  useEffect(() => {
+    playerRef.current = player;
+  }, [player]);
+
+  useEffect(() => {
+    selectedZoneIdRef.current = selectedZoneId;
+  }, [selectedZoneId]);
+
+  useEffect(() => {
+    phaseRef.current = phase;
+  }, [phase]);
+
   const setTimingLine = (value: number, direction = timingDirectionRef.current) => {
     const next = clamp(value, 0, 100);
     timingValueRef.current = next;
     timingDirectionRef.current = direction >= 0 ? 1 : -1;
     lastTimingFrameRef.current = performance.now();
-    setTimingValue(next);
+    if (timingNeedleRef.current) {
+      timingNeedleRef.current.style.transform = `translate3d(${next}%, 0, 0)`;
+    }
+  };
+
+  const pickZone = (zoneId: string) => {
+    if (!isValidZoneId(zoneId)) return;
+    sessionTouchedZoneRef.current = true;
+    setSelectedZoneId(zoneId);
+    setPlayer((current) => ({ ...current, selectedZoneId: zoneId }));
   };
 
   const resetTimingChallenge = (fish: Fish) => {
@@ -620,15 +649,34 @@ function App() {
     try {
       const remoteSave = await fetchPlayerSave(normalizedPlayerId);
       if (remoteSave?.player) {
-        setPlayer(normalizePlayer(remoteSave.player));
+        const normalizedRemotePlayer = normalizePlayer(remoteSave.player);
+        const currentPlayer = playerRef.current;
+        const currentZoneId = isValidZoneId(selectedZoneIdRef.current) ? selectedZoneIdRef.current : currentPlayer.selectedZoneId;
+        const shouldKeepSession = phaseRef.current !== 'idle' || sessionTouchedProvinceRef.current || sessionTouchedZoneRef.current;
+        const nextPlayer = fallbackPlayer
+          ? {
+            ...normalizedRemotePlayer,
+            province: fallbackPlayer.province,
+            selectedZoneId: isValidZoneId(fallbackPlayer.selectedZoneId) ? fallbackPlayer.selectedZoneId : normalizedRemotePlayer.selectedZoneId,
+          }
+          : shouldKeepSession
+            ? {
+              ...normalizedRemotePlayer,
+              province: currentPlayer.province,
+              selectedZoneId: isValidZoneId(currentZoneId) ? currentZoneId : normalizedRemotePlayer.selectedZoneId,
+            }
+          : normalizedRemotePlayer;
+        setPlayer(nextPlayer);
+        setSelectedZoneId(nextPlayer.selectedZoneId);
         setCodex(remoteSave.codex ?? {});
         setSaveOnline(true);
         return true;
       }
 
       if (fallbackPlayer) {
+        const normalizedFallbackPlayer = normalizePlayer({ ...fallbackPlayer, playerId: normalizedPlayerId });
         await savePlayerSave(normalizedPlayerId, {
-          player: { ...fallbackPlayer, playerId: normalizedPlayerId },
+          player: normalizedFallbackPlayer,
           codex: fallbackCodex ?? {},
         });
       }
@@ -679,6 +727,12 @@ function App() {
     saveHydratedRef.current = false;
     void loadRemoteSave(player.playerId);
   }, []);
+
+  useEffect(() => {
+    if (selectedZoneId === player.selectedZoneId) return;
+    if (!isValidZoneId(player.selectedZoneId)) return;
+    setSelectedZoneId(player.selectedZoneId);
+  }, [player.selectedZoneId, selectedZoneId]);
 
   useEffect(() => {
     if (!player.playerId || !saveHydratedRef.current) return undefined;
@@ -734,9 +788,10 @@ function App() {
 
   useEffect(() => {
     if (zoneUnlocks[selectedZoneId]?.unlocked !== false) return;
-    setSelectedZoneId('normal');
+    if (phase !== 'idle') return;
+    pickZone('normal');
     setToast("\u6d77\u57df\u672a\u89e3\u9501\uff0c\u5148\u56de\u5230\u666e\u901a\u6d77\u57df");
-  }, [selectedZoneId, zoneUnlocks]);
+  }, [phase, selectedZoneId, zoneUnlocks]);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -877,7 +932,9 @@ function App() {
       timingValueRef.current = next;
       if (now - lastRenderAt >= renderEveryMs) {
         lastRenderAt = now;
-        setTimingValue(next);
+        if (timingNeedleRef.current) {
+          timingNeedleRef.current.style.transform = `translate3d(${next}%, 0, 0)`;
+        }
       }
       frame = window.requestAnimationFrame(tick);
     };
@@ -903,7 +960,7 @@ function App() {
       return;
     }
     const nextAnomaly = maybeAnomaly(selectedZone);
-    const nextPlayer = { ...player, stamina: player.stamina - castCost, lastStaminaAt: Date.now() };
+    const nextPlayer = { ...player, selectedZoneId: selectedZone.id, stamina: player.stamina - castCost, lastStaminaAt: Date.now() };
     const fish = pickFish(nextPlayer, selectedZone, nextAnomaly);
     fightResolvedRef.current = false;
     timingLockedRef.current = false;
@@ -1218,6 +1275,7 @@ function App() {
     navigator.geolocation.getCurrentPosition(
       (position) => {
         const district = inferGuangzhouDistrict(position.coords.latitude, position.coords.longitude);
+        sessionTouchedProvinceRef.current = true;
         setPlayer((current) => ({ ...current, province: district.name }));
         setLocationMessage(`已定位到 ${district.name} 附近，加入该区 PK`);
         setToast(`${district.name} 上船！`);
@@ -1334,7 +1392,8 @@ function App() {
               {phase === 'reeling' && (
                 <div className="action-stack reeling-action-stack z-10 flex w-full flex-col items-center gap-3">
                   <TimingChallenge
-                    value={timingValue}
+                    valueRef={timingValueRef}
+                    needleRef={timingNeedleRef}
                     hitWindow={timingTarget}
                     hits={hitCount}
                     requiredHits={getRequiredHits(hookedFish)}
@@ -1407,9 +1466,9 @@ function App() {
               {sheet === 'rankDistrict' && <DistrictRank scores={provinceScores} province={player.province} contribution={player.provinceContribution} leaderboardOnline={leaderboardOnline} />}
               {sheet === 'rankPlayer' && <PlayerRank broadcasts={broadcasts} playerRows={remotePlayerRows} playerId={player.playerId} leaderboardOnline={leaderboardOnline} />}
               {sheet === 'zone' && (
-                <ZonePickerUnlocked selectedZoneId={selectedZoneId} unlocks={zoneUnlocks} onPick={(id) => { setSelectedZoneId(id); setSheet(null); }} disabled={!canCast} />
+                <ZonePickerUnlocked selectedZoneId={selectedZoneId} unlocks={zoneUnlocks} onPick={(id) => { pickZone(id); setSheet(null); }} disabled={!canCast} />
               )}
-              {sheet === 'district' && <DistrictPicker province={player.province} onPick={(province) => { setPlayer((current) => ({ ...current, province })); setSheet(null); }} />}
+              {sheet === 'district' && <DistrictPicker province={player.province} onPick={(province) => { sessionTouchedProvinceRef.current = true; setPlayer((current) => ({ ...current, province })); setSheet(null); }} />}
               {sheet === 'codex' && <Codex codex={codex} />}
             </BottomSheet>
           )}
@@ -1611,7 +1670,8 @@ function BigBubble({ title, detail, danger }: { title: string; detail: string; d
 }
 
 function TimingChallenge({
-  value,
+  valueRef,
+  needleRef,
   hitWindow,
   hits,
   requiredHits,
@@ -1619,7 +1679,8 @@ function TimingChallenge({
   danger,
   onTap,
 }: {
-  value: number;
+  valueRef: React.RefObject<number>;
+  needleRef: React.RefObject<HTMLDivElement | null>;
   hitWindow: { min: number; max: number };
   hits: number;
   requiredHits: number;
@@ -1668,7 +1729,11 @@ function TimingChallenge({
         >
           <span className="timing-target-label absolute inset-0 flex items-center justify-center text-[11px] font-black tracking-[0.2em]">HIT</span>
         </div>
-        <div className="timing-needle absolute top-0 h-full" style={{ left: `${value}%`, transform: 'translateX(-50%)' }}>
+        <div
+          ref={needleRef}
+          className="timing-needle absolute left-0 top-0 h-full"
+          style={{ transform: `translate3d(${valueRef.current}%, 0, 0)` }}
+        >
           <span className="absolute left-1/2 top-0 h-full w-1 -translate-x-1/2 bg-rose-500" />
           <span className="absolute left-1/2 top-0 h-full w-px -translate-x-1/2 bg-white" />
           <span className="timing-needle-cap timing-needle-cap-top" />

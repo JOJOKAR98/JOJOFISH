@@ -81,6 +81,7 @@ export interface PlayerState {
   coins: number;
   stamina: number;
   province: string;
+  selectedZoneId: string;
   ownedRodIds: string[];
   equippedRodId: string;
   ownedBaitIds: string[];

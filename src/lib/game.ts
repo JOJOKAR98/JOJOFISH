@@ -23,6 +23,7 @@ export const createDefaultPlayer = (): PlayerState => ({
   coins: 180,
   stamina: 100,
   province: provinces[0],
+  selectedZoneId: 'normal',
   ownedRodIds: ['basic'],
   equippedRodId: 'basic',
   ownedBaitIds: ['plain'],

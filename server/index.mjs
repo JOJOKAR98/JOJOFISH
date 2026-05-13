@@ -1,8 +1,10 @@
 import cors from 'cors';
+import crypto from 'node:crypto';
 import express from 'express';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import OpenAI from 'openai';
 import pg from 'pg';
 
 const { Pool } = pg;
@@ -25,6 +27,7 @@ if (existsSync(envPath)) {
 
 const port = Number(process.env.PORT || 8787);
 const databaseUrl = process.env.DATABASE_URL;
+const feishuBotEnabled = Boolean(process.env.FEISHU_APP_ID && process.env.FEISHU_APP_SECRET && process.env.OPENAI_API_KEY);
 
 if (!databaseUrl) {
   throw new Error('DATABASE_URL is required');
@@ -55,10 +58,116 @@ const districts = [
 ];
 
 const broadcastRarities = new Set(['legendary', 'epic', 'mutant', 'king']);
+const openai = feishuBotEnabled ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
+const feishuConversations = new Map();
+let cachedTenantToken = null;
+let cachedTenantTokenExpiresAt = 0;
 
 const isValidDate = (value) => /^\d{4}-\d{2}-\d{2}$/.test(value);
 const normalizePlayerId = (value) => (typeof value === 'string' ? value.trim().slice(0, 32) : '');
 const isObject = (value) => value && typeof value === 'object' && !Array.isArray(value);
+
+const feishuApi = async (path, init = {}) => {
+  const response = await fetch(`https://open.feishu.cn/open-apis${path}`, {
+    ...init,
+    headers: {
+      'Content-Type': 'application/json; charset=utf-8',
+      ...init.headers,
+    },
+  });
+
+  const data = await response.json().catch(() => null);
+  if (!response.ok || data?.code !== 0) {
+    throw new Error(`Feishu API failed ${response.status}: ${JSON.stringify(data)}`);
+  }
+  return data;
+};
+
+const getTenantAccessToken = async () => {
+  if (cachedTenantToken && Date.now() < cachedTenantTokenExpiresAt) return cachedTenantToken;
+
+  const data = await feishuApi('/auth/v3/tenant_access_token/internal', {
+    method: 'POST',
+    body: JSON.stringify({
+      app_id: process.env.FEISHU_APP_ID,
+      app_secret: process.env.FEISHU_APP_SECRET,
+    }),
+  });
+
+  cachedTenantToken = data.tenant_access_token;
+  cachedTenantTokenExpiresAt = Date.now() + Math.max(60, Number(data.expire ?? 7200) - 300) * 1000;
+  return cachedTenantToken;
+};
+
+const sendFeishuTextMessage = async (receiveId, text, receiveIdType = 'open_id') => {
+  const token = await getTenantAccessToken();
+  await feishuApi(`/im/v1/messages?receive_id_type=${encodeURIComponent(receiveIdType)}`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      receive_id: receiveId,
+      msg_type: 'text',
+      content: JSON.stringify({ text }),
+    }),
+  });
+};
+
+const decryptFeishuPayload = (encrypt) => {
+  if (!process.env.FEISHU_ENCRYPT_KEY) {
+    throw new Error('FEISHU_ENCRYPT_KEY is required for encrypted callbacks');
+  }
+
+  const key = crypto.createHash('sha256').update(process.env.FEISHU_ENCRYPT_KEY).digest();
+  const encrypted = Buffer.from(encrypt, 'base64');
+  const iv = encrypted.subarray(0, 16);
+  const ciphertext = encrypted.subarray(16);
+  const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
+  const decrypted = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+  return JSON.parse(decrypted.toString('utf8'));
+};
+
+const getFeishuEventBody = (body) => {
+  if (body.encrypt) return decryptFeishuPayload(body.encrypt);
+  return body;
+};
+
+const verifyFeishuCallback = (body) => {
+  const token = process.env.FEISHU_VERIFICATION_TOKEN;
+  if (!token) return true;
+  return body.token === token || body.header?.token === token;
+};
+
+const getFeishuMessageText = (message) => {
+  if (message?.message_type !== 'text') return '';
+  try {
+    return JSON.parse(message.content ?? '{}').text?.trim() ?? '';
+  } catch {
+    return '';
+  }
+};
+
+const askFeishuOpenAI = async (conversationKey, userText) => {
+  if (!openai) return '机器人已连通，但服务器还没有配置 OPENAI_API_KEY / FEISHU_APP_ID / FEISHU_APP_SECRET。';
+
+  const history = feishuConversations.get(conversationKey) ?? [];
+  const response = await openai.responses.create({
+    model: process.env.OPENAI_MODEL || 'gpt-4.1-mini',
+    input: [
+      {
+        role: 'system',
+        content: '你是部署在飞书里的工程助手。回答简洁、可执行；没有工具权限时，要说明需要接入执行工具或让用户确认环境。',
+      },
+      ...history,
+      { role: 'user', content: userText },
+    ],
+  });
+
+  const reply = response.output_text?.trim() || '我收到了，但这次没有生成有效回复。';
+  feishuConversations.set(conversationKey, [...history, { role: 'user', content: userText }, { role: 'assistant', content: reply }].slice(-12));
+  return reply;
+};
 
 app.get('/api/health', async (_request, response) => {
   await pool.query('select 1');
@@ -385,9 +494,45 @@ app.post('/api/catches', async (request, response) => {
   }
 });
 
+app.post('/feishu/events', async (request, response, next) => {
+  try {
+    const body = getFeishuEventBody(request.body);
+
+    if (body.type === 'url_verification') {
+      if (!verifyFeishuCallback(body)) {
+        response.status(401).json({ error: 'invalid_verification_token' });
+        return;
+      }
+      response.json({ challenge: body.challenge });
+      return;
+    }
+
+    if (!verifyFeishuCallback(body)) {
+      response.status(401).json({ error: 'invalid_verification_token' });
+      return;
+    }
+
+    response.json({ ok: true });
+
+    const eventType = body.header?.event_type;
+    if (eventType !== 'im.message.receive_v1') return;
+
+    const event = body.event;
+    const messageText = getFeishuMessageText(event?.message);
+    const senderOpenId = event?.sender?.sender_id?.open_id;
+    const conversationKey = event?.message?.chat_id || senderOpenId || 'default';
+
+    if (!messageText || !senderOpenId) return;
+    const reply = await askFeishuOpenAI(conversationKey, messageText);
+    await sendFeishuTextMessage(senderOpenId, reply);
+  } catch (error) {
+    next(error);
+  }
+});
+
 if (existsSync(distDir)) {
   app.use(express.static(distDir));
-  app.get(/^(?!\/api\/).*/, (_request, response) => {
+  app.get(/^(?!\/api\/|\/feishu\/).*/, (_request, response) => {
     response.sendFile(path.join(distDir, 'index.html'));
   });
 }
