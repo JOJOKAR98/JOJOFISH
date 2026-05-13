@@ -117,19 +117,42 @@ jobs:
           cd "$DEPLOY_PATH"
           port="${PORT:-8787}"
 
+          echo "Current Node processes:"
+          ps -eo pid,ppid,comm,args | grep -E 'node|pm2|jojofish' | grep -v grep || true
+          echo "Port $port listeners:"
+          if command -v lsof >/dev/null 2>&1; then
+            lsof -nP -iTCP:"$port" -sTCP:LISTEN || true
+          fi
+          if command -v ss >/dev/null 2>&1; then
+            ss -ltnp "sport = :$port" || true
+          fi
+          if command -v fuser >/dev/null 2>&1; then
+            fuser -v "$port/tcp" || true
+          fi
+
           pids=""
           if command -v lsof >/dev/null 2>&1; then
             pids="$(lsof -ti tcp:"$port" || true)"
           elif command -v ss >/dev/null 2>&1; then
             pids="$(ss -ltnp "sport = :$port" 2>/dev/null | sed -n 's/.*pid=\([0-9][0-9]*\).*/\1/p' | sort -u || true)"
+          elif command -v fuser >/dev/null 2>&1; then
+            pids="$(fuser "$port/tcp" 2>/dev/null || true)"
           fi
 
           if command -v pm2 >/dev/null 2>&1; then
             pm2 delete jojofish jojofish-api 2>/dev/null || true
+            pm2 delete all 2>/dev/null || true
           fi
 
           if [ -n "$pids" ]; then
             kill $pids || true
+            sleep 1
+          fi
+
+          pkill -f "$DEPLOY_PATH/server/index.mjs" 2>/dev/null || true
+          pkill -f "node server/index.mjs" 2>/dev/null || true
+          if command -v fuser >/dev/null 2>&1; then
+            fuser -k "$port/tcp" 2>/dev/null || true
             sleep 1
           fi
 
@@ -143,6 +166,8 @@ jobs:
           fi
 
           sleep 2
+          echo "Node processes after restart:"
+          ps -eo pid,ppid,comm,args | grep -E 'node|pm2|jojofish' | grep -v grep || true
           curl -fsS "http://127.0.0.1:$port/api/health"
           curl -fsS -X POST "http://127.0.0.1:$port/api/feishu/events" -H "Content-Type: application/json" -d '{"type":"url_verification","challenge":"deploy_check"}'
           EOF
