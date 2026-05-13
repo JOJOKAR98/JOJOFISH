@@ -184,6 +184,24 @@ const MAX_STAMINA = 100;
 const STAMINA_RESTORE_MS = 60000;
 const STAMINA_RESTORE_AMOUNT = 5;
 const LUCK_AD_COOLDOWN_MS = 60 * 60 * 1000;
+const MOBILE_LEADERBOARD_REFRESH_MS = 45000;
+const DESKTOP_LEADERBOARD_REFRESH_MS = 15000;
+const MOBILE_FIGHT_TIMER_MS = 100;
+const DESKTOP_FIGHT_TIMER_MS = 50;
+const MOBILE_TIMING_RENDER_MS = 66;
+const DESKTOP_TIMING_RENDER_MS = 16;
+const MOBILE_AMBIENT_TUG_POLL_MS = 250;
+const DESKTOP_AMBIENT_TUG_POLL_MS = 120;
+
+const isLowPowerDevice = () => {
+  if (typeof window === 'undefined') return false;
+
+  const matches = (query: string) => window.matchMedia?.(query).matches ?? false;
+  const nav = navigator as Navigator & { deviceMemory?: number };
+  const lowMemory = typeof nav.deviceMemory === 'number' && nav.deviceMemory <= 4;
+
+  return matches('(pointer: coarse)') || matches('(max-width: 640px)') || matches('(prefers-reduced-motion: reduce)') || lowMemory;
+};
 
 const recoverStamina = (player: PlayerState): PlayerState => {
   const now = Date.now();
@@ -391,6 +409,8 @@ const baseProgressGainByRarity: Record<Fish['rarity'], number> = {
   king: 15,
 };
 
+const preRequiredHitsProgressCap = 96;
+
 const getGearControl = (rod: Rod, bait: Bait, character: FishingCharacter) => {
   return rod.difficulty * 0.45 + rod.tolerance * 0.3 + bait.rareBoost * 0.35 + character.focus * 0.85;
 };
@@ -557,6 +577,7 @@ function App() {
   const timeLeftRef = useRef(timeLeft);
   const progressRef = useRef(progress);
   const saveHydratedRef = useRef(false);
+  const lowPowerDeviceRef = useRef(isLowPowerDevice());
 
   const selectedZone = useMemo(() => seaZones.find((zone) => zone.id === selectedZoneId) ?? seaZones[0], [selectedZoneId]);
   const equippedRod = useMemo(() => getEquippedRod(player), [player]);
@@ -570,7 +591,7 @@ function App() {
     anomaly.id !== 'none'
       ? seaClassByTone[anomaly.tone] ?? 'sea-scene'
       : seaClassByZone[selectedZone.id] ?? 'sea-zone-normal';
-  const castCost = Math.max(1, selectedZone.staminaCost - equippedCharacter.staminaSaver);
+  const castCost = selectedZone.staminaCost;
   const staminaCountdown = formatStaminaCountdown(player, nowTick);
   const luckAdRemaining = Math.max(0, LUCK_AD_COOLDOWN_MS - (nowTick - (player.lastLuckAdAt || 0)));
   const luckAdReady = luckAdRemaining <= 0;
@@ -703,7 +724,8 @@ function App() {
     };
 
     void loadScores();
-    const timer = window.setInterval(loadScores, 15000);
+    const refreshMs = lowPowerDeviceRef.current ? MOBILE_LEADERBOARD_REFRESH_MS : DESKTOP_LEADERBOARD_REFRESH_MS;
+    const timer = window.setInterval(loadScores, refreshMs);
     return () => {
       cancelled = true;
       window.clearInterval(timer);
@@ -755,7 +777,8 @@ function App() {
 
   useEffect(() => {
     if (phase !== 'waiting') return undefined;
-    const timer = window.setInterval(() => setWaitLeft((value) => Math.max(0, value - 0.1)), 100);
+    const intervalMs = lowPowerDeviceRef.current ? 200 : 100;
+    const timer = window.setInterval(() => setWaitLeft((value) => Math.max(0, value - intervalMs / 1000)), intervalMs);
     return () => window.clearInterval(timer);
   }, [phase]);
 
@@ -795,6 +818,7 @@ function App() {
             : 0;
 
     nextAmbientTugAtRef.current = Date.now() + randomInt(420, 900);
+    const intervalMs = lowPowerDeviceRef.current ? MOBILE_AMBIENT_TUG_POLL_MS : DESKTOP_AMBIENT_TUG_POLL_MS;
     const timer = window.setInterval(() => {
       const now = Date.now();
       if (now < nextAmbientTugAtRef.current || timingLockedRef.current) return;
@@ -802,32 +826,37 @@ function App() {
       triggerTug('soft');
       const tenseBonus = timeLeftRef.current <= 2 || progressRef.current >= 72 ? 140 : 0;
       nextAmbientTugAtRef.current = now + randomInt(760, 1280) - rarityPull - tenseBonus;
-    }, 120);
+    }, intervalMs);
 
     return () => window.clearInterval(timer);
   }, [phase, hookedFish]);
 
   useEffect(() => {
     if (phase !== 'reeling' || !hookedFish) return undefined;
+    const intervalMs = lowPowerDeviceRef.current ? MOBILE_FIGHT_TIMER_MS : DESKTOP_FIGHT_TIMER_MS;
+    const intervalSeconds = intervalMs / 1000;
     const timer = window.setInterval(() => {
       setTimeLeft((value) => {
-        const next = Math.max(0, value - 0.05);
+        const next = Math.max(0, value - intervalSeconds);
         if (next <= 0) finishFight(false, 'timeout');
         return next;
       });
 
-    }, 50);
+    }, intervalMs);
     return () => window.clearInterval(timer);
   }, [phase, hookedFish]);
 
   useEffect(() => {
     if (phase !== 'reeling' || !hookedFish) return undefined;
     let frame = 0;
+    const renderEveryMs = lowPowerDeviceRef.current ? MOBILE_TIMING_RENDER_MS : DESKTOP_TIMING_RENDER_MS;
+    let lastRenderAt = 0;
     lastTimingFrameRef.current = performance.now();
 
     const tick = (now: number) => {
       if (timingLockedRef.current) {
         lastTimingFrameRef.current = now;
+        lastRenderAt = now;
         frame = window.requestAnimationFrame(tick);
         return;
       }
@@ -846,7 +875,10 @@ function App() {
       }
 
       timingValueRef.current = next;
-      setTimingValue(next);
+      if (now - lastRenderAt >= renderEveryMs) {
+        lastRenderAt = now;
+        setTimingValue(next);
+      }
       frame = window.requestAnimationFrame(tick);
     };
 
@@ -907,10 +939,12 @@ function App() {
     fightResolvedRef.current = true;
 
     let finalSuccess = success;
-    if (!success && reason === 'timeout' && progress >= getTimeoutGraceProgress(hookedFish, equippedRod, equippedBait, equippedCharacter)) {
+    const requiredHits = getRequiredHits(hookedFish);
+    const hasRequiredHits = hitCount >= requiredHits;
+    if (!success && hasRequiredHits && reason === 'timeout' && progress >= getTimeoutGraceProgress(hookedFish, equippedRod, equippedBait, equippedCharacter)) {
       finalSuccess = true;
     }
-    if (!success && player.totalCasts < 5 && player.newbieWins < 4 && hookedFish.rarity !== 'king' && progress > 45) {
+    if (!success && hasRequiredHits && player.totalCasts < 5 && player.newbieWins < 4 && hookedFish.rarity !== 'king' && progress > 45) {
       finalSuccess = true;
     }
 
@@ -1039,7 +1073,7 @@ function App() {
 
   const tapTiming = () => {
     if (phase !== 'reeling' || fightResolvedRef.current || timingLockedRef.current || !hookedFish) return;
-    const currentTimingValue = timingValue;
+    const currentTimingValue = timingValueRef.current;
     const effectiveHitWindow = expandHitWindow(timingTarget);
     const windowDistance = getWindowDistance(currentTimingValue, effectiveHitWindow);
     const isHit = currentTimingValue >= effectiveHitWindow.min && currentTimingValue <= effectiveHitWindow.max;
@@ -1050,17 +1084,17 @@ function App() {
       const accuracy = getWindowAccuracy(currentTimingValue, timingTarget);
       const gain = getProgressGain(hookedFish, accuracy, equippedRod, equippedBait, equippedCharacter, selectedZone);
       const completesRequiredHits = hitCount + 1 >= requiredHits;
-      const nextProgress = completesRequiredHits ? 100 : clamp(progress + gain, 0, 100);
-      const nextHits = nextProgress >= 100 ? requiredHits : hitCount + 1;
+      const nextHits = Math.min(requiredHits, hitCount + 1);
+      const nextProgress = completesRequiredHits ? 100 : clamp(progress + gain, 0, preRequiredHitsProgressCap);
       flushSync(() => {
         setHitCount(nextHits);
         setMissCount((value) => Math.max(0, value - 1));
         setProgress(nextProgress);
-        setToast(nextProgress >= 100 ? '\u62c9\u4e0a\u6765\uff01' : `\u7cbe\u51c6\u6536\u7ebf\uff01+${Math.round(gain)}%`);
+        setToast(completesRequiredHits ? '\u62c9\u4e0a\u6765\uff01' : `\u7cbe\u51c6\u6536\u7ebf\uff01+${Math.round(gain)}%`);
         setPulse(true);
       });
       triggerTug('hit');
-      if (nextProgress < 100) {
+      if (!completesRequiredHits) {
         window.setTimeout(() => {
           if (!fightResolvedRef.current) resetTimingChallenge(hookedFish);
         }, 80);
@@ -1971,7 +2005,7 @@ function CharacterPicker({ player, equippedCharacterId, onPick }: { player: Play
             <div className="mt-2 grid grid-cols-3 gap-1 text-center text-[10px] font-black">
               <span>运 +{character.luck}</span>
               <span>稳 +{character.focus}</span>
-              <span>省 {character.staminaSaver}</span>
+              <span>耐 +{character.staminaSaver}</span>
             </div>
             <p className="mt-2 text-[11px] leading-4 opacity-75">{character.description}</p>
           </button>

@@ -156,7 +156,14 @@ app.get('/api/leaderboard/players', async (request, response) => {
 
   const result = await pool.query(
     `
-      with player_totals as (
+      with saved_players as (
+        select
+          player_id,
+          player_state,
+          updated_at
+        from player_saves
+      ),
+      event_totals as (
         select
           player_id,
           count(*) filter (where score_date = $1)::int as daily_catches,
@@ -165,18 +172,62 @@ app.get('/api/leaderboard/players', async (request, response) => {
           coalesce(sum(coins) filter (where score_date = $1), 0)::int as daily_coins,
           count(*)::int as total_catches,
           coalesce(sum(weight), 0)::float as total_weight,
-          coalesce(sum(coins), 0)::int as total_coins
+          coalesce(sum(coins), 0)::int as total_coins,
+          max(created_at) as last_catch_at
         from catch_events
         group by player_id
       ),
+      player_base as (
+        select player_id from saved_players
+        union
+        select player_id from event_totals
+        union
+        select $3::text as player_id where $3 <> ''
+      ),
+      player_totals as (
+        select
+          player_base.player_id,
+          greatest(
+            coalesce(event_totals.daily_catches, 0),
+            case
+              when saved_players.player_state ->> 'statsDate' = $1::text
+                then coalesce((saved_players.player_state ->> 'dailyCasts')::int, 0)
+              else 0
+            end
+          )::int as daily_catches,
+          greatest(
+            coalesce(event_totals.daily_weight, 0),
+            case
+              when saved_players.player_state ->> 'statsDate' = $1::text
+                then coalesce((saved_players.player_state ->> 'dailyWeight')::float, 0)
+              else 0
+            end
+          )::float as daily_weight,
+          coalesce(event_totals.daily_score, 0)::int as daily_score,
+          greatest(
+            coalesce(event_totals.daily_coins, 0),
+            case
+              when saved_players.player_state ->> 'statsDate' = $1::text
+                then coalesce((saved_players.player_state ->> 'dailyCoins')::int, 0)
+              else 0
+            end
+          )::int as daily_coins,
+          greatest(coalesce(event_totals.total_catches, 0), coalesce((saved_players.player_state ->> 'totalCasts')::int, 0))::int as total_catches,
+          greatest(coalesce(event_totals.total_weight, 0), coalesce((saved_players.player_state ->> 'totalWeight')::float, 0))::float as total_weight,
+          greatest(coalesce(event_totals.total_coins, 0), coalesce((saved_players.player_state ->> 'totalCoins')::int, 0))::int as total_coins,
+          coalesce(saved_players.updated_at, event_totals.last_catch_at) as last_active_at
+        from player_base
+        left join saved_players on saved_players.player_id = player_base.player_id
+        left join event_totals on event_totals.player_id = player_base.player_id
+      ),
       candidates as (
-        (select player_id from player_totals where daily_catches > 0 order by daily_weight desc, daily_score desc, daily_catches desc, player_id asc limit $2)
+        (select player_id from player_totals order by daily_weight desc, daily_score desc, daily_catches desc, total_catches desc, last_active_at desc nulls last, player_id asc limit $2)
         union
-        (select player_id from player_totals where daily_catches > 0 order by daily_coins desc, daily_score desc, daily_weight desc, player_id asc limit $2)
+        (select player_id from player_totals order by daily_coins desc, daily_score desc, daily_weight desc, total_coins desc, last_active_at desc nulls last, player_id asc limit $2)
         union
-        (select player_id from player_totals where total_catches > 0 order by total_catches desc, total_weight desc, player_id asc limit $2)
+        (select player_id from player_totals order by total_catches desc, total_weight desc, last_active_at desc nulls last, player_id asc limit $2)
         union
-        (select player_id from player_totals where total_coins > 0 order by total_coins desc, total_weight desc, player_id asc limit $2)
+        (select player_id from player_totals order by total_coins desc, total_weight desc, last_active_at desc nulls last, player_id asc limit $2)
         union
         (select $3::text as player_id where $3 <> '')
       ),
@@ -184,7 +235,7 @@ app.get('/api/leaderboard/players', async (request, response) => {
         select
           player_totals.*,
           row_number() over (
-            order by daily_weight desc, daily_score desc, daily_catches desc, player_totals.player_id asc
+            order by daily_weight desc, daily_score desc, daily_catches desc, total_catches desc, last_active_at desc nulls last, player_totals.player_id asc
           )::int as rank
         from player_totals
         inner join candidates on candidates.player_id = player_totals.player_id

@@ -3609,3 +3609,56 @@ body {
   padding: 0.55rem;
   background: rgba(255, 247, 209, 0.35);
 }
+
+@media (max-width: 640px), (pointer: coarse), (prefers-reduced-motion: reduce) {
+  .stardew-ui .distant-cloud,
+  .stardew-ui .sea-glint,
+  .stardew-ui .current-ribbons,
+  .stardew-ui .wave-layer,
+  .stardew-ui .wave-foam,
+  .stardew-ui .near-wave,
+  .stardew-ui .sea-sparks,
+  .stardew-ui .fish-shadow,
+  .stardew-ui .underwater-shadow {
+    animation: none !important;
+  }
+
+  .stardew-ui .sea-glint,
+  .stardew-ui .current-ribbons,
+  .stardew-ui .sea-sparks {
+    opacity: 0.1 !important;
+  }
+
+  .stardew-ui .wave-layer,
+  .stardew-ui .wave-foam,
+  .stardew-ui .near-wave {
+    opacity: 0.34 !important;
+  }
+
+  .stardew-ui .distant-cloud {
+    opacity: 0.16 !important;
+    filter: none !important;
+  }
+
+  .stardew-ui .underwater-shadow,
+  .stardew-ui .fish-shadow {
+    filter: none !important;
+  }
+
+  .stardew-ui .splash {
+    animation-duration: 1.4s !important;
+  }
+
+  .stardew-ui .gear-rod-active,
+  .stardew-ui .gear-line-active,
+  .stardew-ui .gear-bobber,
+  .stardew-ui .float-bobber {
+    animation-duration: 2.4s !important;
+  }
+
+  .stardew-ui .gear-bobber-bite,
+  .stardew-ui .float-bite,
+  .stardew-ui .line-tug {
+    animation-duration: 0.55s !important;
+  }
+}
